@@ -9,7 +9,8 @@ const CatMgr = (() => {
   let currentPage  = 1;
   let filterSearch = '';
   let editingId    = null;
-
+  
+  
   function render() {
     let data = Store.categories.map(c => ({
       ...c,
@@ -45,7 +46,7 @@ const CatMgr = (() => {
           </tr>`);
       });
     }
-
+    // render()
     $('#catPaginationInfo').text(`Showing ${pg.start+1}–${Math.min(pg.start+pg.perPage, pg.total)} of ${pg.total} categories`);
     renderPaginationBtns($('#catPaginationBtns'), pg, (p) => { currentPage = p; render(); });
   }
@@ -134,7 +135,37 @@ const StockMgr = (() => {
   // For stock in/out/adjust modals
   let activeItemId    = null;
   let activeVariantKey = null;
+  let filterDateFrom = '';
+  let filterDateTo = '';
+  let filterItemId = '';
+  function loadStock(page = 1) {
 
+      currentPage = page;
+
+      const params = new URLSearchParams({
+        page,
+        per_page: Config.itemsPerPage,
+        search: filterSearch || '',
+        date_from: filterDateFrom || '',
+        date_to: filterDateTo || '',
+        item_id: filterItemId || ''
+      });
+
+      API.get(`/ledger?${params.toString()}`, function(res){
+
+        if(!res.success){
+          console.error("Failed to load stock",res);
+          return;
+        }
+
+        Store.stockRows = res.data;
+        Store.stockMeta = res.meta;
+
+        render();
+
+      });
+
+    }
   /* ── Populate filter dropdowns ── */
   function populateFilters() {
     const $cat = $('#stockFilterCat, #purchaseItemFilter');
@@ -169,25 +200,37 @@ const StockMgr = (() => {
           costPrice:   item.costPrice,
           sellingPrice:item.sellingPrice,
         });
+
       });
     });
+    console.log('Built stock rows:', rows);
     return rows;
+
   }
 
   /* ── Render stock table ── */
   function render() {
-    let data = buildStockRows();
-
+    let data = Store.stockRows || [];
+    console.log(data,"Stock LEdger Data");
+    
     if (filterSearch) {
       const q = filterSearch.toLowerCase();
       data = data.filter(r => r.itemName.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q));
     }
     if (filterCat)    data = data.filter(r => r.categoryId === parseInt(filterCat));
-    if (filterStatus === 'in')   data = data.filter(r => r.stock > Config.lowStockThresh);
-    if (filterStatus === 'low')  data = data.filter(r => r.stock > 0 && r.stock <= Config.lowStockThresh);
-    if (filterStatus === 'out')  data = data.filter(r => r.stock === 0);
+    // category filtering not supported by ledger API
+    // remove or implement using item_id parameter
 
-    const pg = paginate(data, currentPage, Config.itemsPerPage);
+    if (filterStatus === 'in')
+      data = data.filter(r => r.stockAfter > Config.lowStockThresh);
+
+    if (filterStatus === 'low')
+      data = data.filter(r => r.stockAfter > 0 && r.stockAfter <= Config.lowStockThresh);
+
+    if (filterStatus === 'out')
+    data = data.filter(r => r.stockAfter === 0);
+    const pg = { data: data };
+    console.log(pg.data,"Filtered Stock Data");
     const $tbody = $('#stockTableBody');
     $tbody.empty();
 
@@ -195,47 +238,66 @@ const StockMgr = (() => {
       $tbody.html(`<tr><td colspan="9"><div class="empty-state"><i class="bi bi-clipboard2-data"></i><p>No stock records found.</p></div></td></tr>`);
     } else {
       pg.data.forEach(row => {
-        const st = Store.getStockStatus(row.stock);
+        // log('Rendering row:', row);
+        const qtyClass = row.qty >= 0 ? 'qty-plus' : 'qty-minus';
+        // console.log("Row:",qtyClass);
+        
         $tbody.append(`
           <tr>
+
             <td>
               <div class="product-cell">
-                <div class="product-img">${row.emoji}</div>
+                <div class="product-img">📦</div>
                 <div>
                   <div class="product-name">${esc(row.itemName)}</div>
                   <div class="product-sku">${esc(row.sku)}</div>
                 </div>
               </div>
             </td>
+
             <td>
-              <span class="sku-chip">${esc(row.size)}</span>
+              <span class="sku-chip">${esc(row.variantSize)}</span>
               <span style="margin:0 3px;color:var(--text-xlight);">|</span>
-              <span style="font-size:.78rem;color:var(--text-muted);">${esc(row.color)}</span>
+              <span style="font-size:.78rem;color:var(--text-muted);">${esc(row.variantColor)}</span>
             </td>
-            <td><span class="badge" style="background:var(--accent-soft);color:var(--accent);font-size:.65rem;">${esc(row.categoryName)}</span></td>
-            <td style="font-family:var(--font-mono);font-weight:700;font-size:.9rem;text-align:center;">${row.stock}</td>
-            <td>${fmt(row.costPrice)}</td>
-            <td>${fmt(row.sellingPrice)}</td>
-            <td><span class="badge ${st.cls}">${st.label}</span></td>
+
+            <td style="font-family:var(--font-mono);font-weight:700;text-align:center;">
+              ${row.stockAfter}
+            </td>
+
+            <td class="${qtyClass}" style="font-family:var(--font-mono);font-weight:700;">
+              ${row.qty >= 0 ? '+' : ''}${row.qty}
+            </td>
+
+            <td style="font-size:.8rem;color:var(--text-muted);">
+              ${esc(row.note || '—')}
+            </td>
+
             <td>
-              <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                <button class="btn btn-sm btn-success stock-in-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Add Stock">
-                  <i class="bi bi-plus-circle"></i> In
-                </button>
-                <button class="btn btn-sm btn-danger stock-out-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Remove Stock">
-                  <i class="bi bi-dash-circle"></i> Out
-                </button>
-                <button class="btn btn-sm btn-outline stock-adj-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Adjust Stock">
-                  <i class="bi bi-sliders"></i>
-                </button>
-              </div>
+              <span class="badge badge-${row.type}">
+                ${row.type}
+              </span>
             </td>
-          </tr>`);
+
+            <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">
+              ${esc(row.ref)}
+            </td>
+
+          </tr>
+        `);
+
       });
     }
 
-    $('#stockPaginationInfo').text(`Showing ${pg.start+1}–${Math.min(pg.start+pg.perPage, pg.total)} of ${pg.total} variants`);
-    renderPaginationBtns($('#stockPaginationBtns'), pg, (p) => { currentPage = p; render(); });
+    const meta = Store.stockMeta;
+
+    $('#stockPaginationInfo').text(
+      `Page ${meta.currentPage} of ${meta.lastPage} (${meta.total} records)`
+    );
+
+    renderPaginationBtns($('#stockPaginationBtns'), meta, (p)=>{
+      loadStock(p);
+    });
   }
 
   /* ── Filter by item (called from Items page) ── */
@@ -339,8 +401,7 @@ const StockMgr = (() => {
 
   function init() {
     populateFilters();
-    render();
-
+    loadStock();
     // Stock In button
     $(document).on('click', '.stock-in-btn', function () {
       openStockInOut('in', parseInt($(this).data('item')), $(this).data('vk'));

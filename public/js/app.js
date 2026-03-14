@@ -88,16 +88,16 @@ const Store = {
 
   /* ── Ledger ── */
   ledger: [
-    { id:1,  date:'2026-03-08', itemId:1, variantKey:'M-White', type:'Purchase',   qty:+24, ref:'PO-001', user:'Admin',    note:'Opening stock' },
-    { id:2,  date:'2026-03-08', itemId:2, variantKey:'32-Khaki',type:'Purchase',   qty:+15, ref:'PO-001', user:'Admin',    note:'Opening stock' },
-    { id:3,  date:'2026-03-08', itemId:3, variantKey:'S-Pink',  type:'Purchase',   qty:+12, ref:'PO-001', user:'Admin',    note:'Opening stock' },
-    { id:4,  date:'2026-03-08', itemId:5, variantKey:'M-Cream', type:'Purchase',   qty:+20, ref:'PO-001', user:'Admin',    note:'Opening stock' },
-    { id:5,  date:'2026-03-09', itemId:1, variantKey:'M-White', type:'Sale',       qty:-2,  ref:'INV-220', user:'Cashier', note:'' },
-    { id:6,  date:'2026-03-09', itemId:3, variantKey:'S-Pink',  type:'Sale',       qty:-3,  ref:'INV-221', user:'Cashier', note:'' },
-    { id:7,  date:'2026-03-09', itemId:7, variantKey:'32-Brown',type:'Adjustment', qty:-1,  ref:'ADJ-01',  user:'Admin',   note:'Damaged' },
-    { id:8,  date:'2026-03-09', itemId:10,variantKey:'40-Black',type:'Purchase',   qty:+7,  ref:'PO-002',  user:'Admin',   note:'Restock' },
-    { id:9,  date:'2026-03-09', itemId:4, variantKey:'L-Blue',  type:'Sale',       qty:-1,  ref:'INV-222', user:'Cashier', note:'' },
-    { id:10, date:'2026-03-09', itemId:12,variantKey:'Free-Grey',type:'Adjustment',qty:-2,  ref:'ADJ-02',  user:'Admin',   note:'Lost' },
+    // { id:1,  date:'2026-03-08', itemId:1, variantKey:'M-White', type:'Purchase',   qty:+24, ref:'PO-001', user:'Admin',    note:'Opening stock' },
+    // { id:2,  date:'2026-03-08', itemId:2, variantKey:'32-Khaki',type:'Purchase',   qty:+15, ref:'PO-001', user:'Admin',    note:'Opening stock' },
+    // { id:3,  date:'2026-03-08', itemId:3, variantKey:'S-Pink',  type:'Purchase',   qty:+12, ref:'PO-001', user:'Admin',    note:'Opening stock' },
+    // { id:4,  date:'2026-03-08', itemId:5, variantKey:'M-Cream', type:'Purchase',   qty:+20, ref:'PO-001', user:'Admin',    note:'Opening stock' },
+    // { id:5,  date:'2026-03-09', itemId:1, variantKey:'M-White', type:'Sale',       qty:-2,  ref:'INV-220', user:'Cashier', note:'' },
+    // { id:6,  date:'2026-03-09', itemId:3, variantKey:'S-Pink',  type:'Sale',       qty:-3,  ref:'INV-221', user:'Cashier', note:'' },
+    // { id:7,  date:'2026-03-09', itemId:7, variantKey:'32-Brown',type:'Adjustment', qty:-1,  ref:'ADJ-01',  user:'Admin',   note:'Damaged' },
+    // { id:8,  date:'2026-03-09', itemId:10,variantKey:'40-Black',type:'Purchase',   qty:+7,  ref:'PO-002',  user:'Admin',   note:'Restock' },
+    // { id:9,  date:'2026-03-09', itemId:4, variantKey:'L-Blue',  type:'Sale',       qty:-1,  ref:'INV-222', user:'Cashier', note:'' },
+    // { id:10, date:'2026-03-09', itemId:12,variantKey:'Free-Grey',type:'Adjustment',qty:-2,  ref:'ADJ-02',  user:'Admin',   note:'Lost' },
   ],
   _ledgerNextId: 11,
 
@@ -159,24 +159,9 @@ const Store = {
       note: reason,
     });
   },
+  
 };
-function loadCategories() {
 
-  API.get('/categories', function(res){
-
-    Store.categories = res.data.map(c => ({
-      id: c.id,
-      name: c.name,
-      description: c.description,
-      createdAt: c.created_at,
-      itemCount: c.items_count
-    }));
-
-    CatMgr.render(); // your existing table renderer
-
-  });
-
-}
 
 /* ================================================================
    UTILITY FUNCTIONS
@@ -364,7 +349,7 @@ function showPage(pageId) {
 
 /* ── Boot ── */
 $(document).ready(function () {
-  loadCategories(0);
+  // Store.loadCategories(0);
   ItemMgr.loadItems();
   refreshStats();
   showPage('dashboard');

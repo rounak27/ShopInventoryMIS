@@ -85,6 +85,23 @@ const ItemMgr = (() => {
   //   $('#itemsPaginationInfo').text(`Showing ${pg.start+1}–${Math.min(pg.start+pg.perPage, pg.total)} of ${pg.total} items`);
   //   renderPaginationBtns($('#itemsPaginationBtns'), pg, (p) => { currentPage = p; render(); });
   // }
+  function loadCategories(){
+    console.log('Loading categories from API...');
+    API.get('/categories', function(res){
+      console.log('API');
+      console.log('Response:', res);
+      Store.categories = res.data.map(c => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        createdAt: c.created_at,
+        itemCount: c.items_count
+      }));
+      populateCatDropdowns();
+      console.log('Loaded categories:', Store.categories);
+      CatMgr.render(); // your existing table renderer
+    });
+  }
   function loadItems(page = 1) {
 
       API.get(`/items?page=${page}&per_page=${Config.itemsPerPage}&search=${filterSearch || ''}&category_id=${filterCat || ''}`,
@@ -96,7 +113,7 @@ const ItemMgr = (() => {
         ItemMgr.render();
     });
   }
-function render() {
+  function render() {
 
   const data = Store.items;
   const meta = Store.itemsMeta;
@@ -117,9 +134,10 @@ function render() {
     `);
     return;
   }
-
+  console.log("Data from API:",data);
+  
   data.forEach(item => {
-
+    
     const totalStock   = item.variants.reduce((s,v)=>s+v.stock,0);
     const variantCount = item.variants.length;
 
@@ -139,15 +157,15 @@ function render() {
 
         <td>
           <span class="badge" style="background:var(--accent-soft);color:var(--accent);font-size:.68rem;">
-            ${esc(item.category?.name ?? '')}
+            ${esc(item.category ?? '')}
           </span>
         </td>
 
         <td>${esc(item.brand ?? '')}</td>
 
-        <td>${fmt(item.cost_price)}</td>
+        <td>${fmt(item.costPrice)}</td>
 
-        <td>${fmt(item.selling_price)}</td>
+        <td>${fmt(item.sellingPrice)}</td>
 
         <td class="text-center">
           <span class="sku-chip">${variantCount}</span>
@@ -188,6 +206,7 @@ function render() {
 }
   /* ── Populate category dropdowns ── */
   function populateCatDropdowns() {
+    console.log('Populating category dropdowns with categories:', Store.categories);
     const $selectors = $('#itemCategorySelect, #itemFilterCat');
     $selectors.each(function () {
       const isFilter = this.id === 'itemFilterCat';
@@ -304,7 +323,8 @@ function render() {
 
   /* ── Init ── */
   function init() {
-    populateCatDropdowns();
+    loadCategories();
+    // populateCatDropdowns();
     render();
 
     // Add item btn

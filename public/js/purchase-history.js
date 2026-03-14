@@ -6,9 +6,34 @@
 'use strict';
 
 const PurchaseMgr = (() => {
-
+   let currentPage = 1;
+    let filterSearch = '';
+    let filterDateFrom = '';
+    let filterDateTo = '';
   let purchaseRows = [];  // { id, itemId, variantKey, qty, costPrice }
   let rowCounter   = 0;
+  function loadPurchases(page = 1) {
+        currentPage = page;
+        const params = new URLSearchParams({
+            page,
+            per_page: Config.itemsPerPage,
+            search: filterSearch || '',
+            date_from: filterDateFrom || '',
+            date_to: filterDateTo || ''
+        });
+
+        API.get(`/purchases?${params.toString()}`, function(res) {
+            if (!res.success) {
+                console.error("Failed to load purchases", res);
+                return;
+            }
+
+            Store.purchases = res.data;
+            Store.purchasesMeta = res.meta;
+
+            renderRecentPurchases();
+        });
+    }
 
   /* ── Populate item selects ── */
   function populateItemSelect($select, selectedItemId) {
@@ -29,8 +54,10 @@ const PurchaseMgr = (() => {
     if (!itemId) return;
     const item = Store.getItem(itemId);
     if (!item) return;
+    // console.log();
+    
     item.variants.forEach(v => {
-      $variant.append(`<option value="${v.size}-${v.color}">${v.size} / ${v.color} (${v.stock} in stock)</option>`);
+      $variant.append(`<option value="${v.id}">${v.size} / ${v.color} (${v.stock} in stock)</option>`);
     });
     // Pre-fill cost price
     $row.find('.pr-cost').val(item.costPrice);
@@ -128,7 +155,8 @@ const PurchaseMgr = (() => {
       };
       Store.addLedgerEntry(entry);
     });
-
+    console.log(supplier,date,notes,ref,items);
+    
     // POST to Laravel API
     API.post('/purchases', { supplier, date, notes, ref, items });
 
@@ -143,43 +171,72 @@ const PurchaseMgr = (() => {
   }
 
   /* ── Render recent purchases in the purchase page ── */
-  function renderRecentPurchases() {
-    const purchases = Store.ledger.filter(e => e.type === 'Purchase').slice(0, 20);
+  // function renderRecentPurchases() {
+  //   const purchases = Store.purchases || [];//Store.ledger.filter(e => e.type === 'Purchase').slice(0, 20);
+  //   console.log("Rendering recent purchases", purchases);
+  //   const $tbody = $('#recentPurchasesBody');
+  //   $tbody.empty();
+
+  //   if (!purchases.length) {
+  //     $tbody.html(`<tr><td colspan="7"><div class="empty-state"><i class="bi bi-cart-plus"></i><p>No purchases yet.</p></div></td></tr>`);
+  //     return;
+  //   }
+  //   console.log("Purchases:",purchases);
+    
+  //   purchases.forEach(entry => {
+  //     const item = Store.getItem(entry.itemId);
+  //     if (!item) return;
+  //     const variant = item.variants.find(v => `${v.size}-${v.color}` === entry.variantKey);
+  //     $tbody.append(`
+  //       <tr>
+  //         <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">${entry.ref}</td>
+  //         <td style="color:var(--text-muted);font-size:.8rem;">${entry.date}</td>
+  //         <td>
+  //           <div class="product-cell">
+  //             <div class="product-img">${item.emoji}</div>
+  //             <div>
+  //               <div class="product-name">${esc(item.name)}</div>
+  //               <div class="product-sku">${esc(item.sku)}</div>
+  //             </div>
+  //           </div>
+  //         </td>
+  //         <td><span class="sku-chip">${esc(entry.variantKey)}</span></td>
+  //         <td class="qty-plus" style="font-weight:700;font-family:var(--font-mono);">+${entry.qty}</td>
+  //         <td style="font-size:.8rem;">${entry.note || '—'}</td>
+  //         <td><span class="badge badge-purchase">Purchase</span></td>
+  //       </tr>`);
+  //   });
+  // }
+function renderRecentPurchases() {
+    const purchases = Store.purchases || [];
     const $tbody = $('#recentPurchasesBody');
     $tbody.empty();
 
     if (!purchases.length) {
-      $tbody.html(`<tr><td colspan="7"><div class="empty-state"><i class="bi bi-cart-plus"></i><p>No purchases yet.</p></div></td></tr>`);
-      return;
+        $tbody.html(`<tr><td colspan="7"><div class="empty-state"><i class="bi bi-cart-plus"></i><p>No purchases yet.</p></div></td></tr>`);
+        return;
     }
 
-    purchases.forEach(entry => {
-      const item = Store.getItem(entry.itemId);
-      if (!item) return;
-      const variant = item.variants.find(v => `${v.size}-${v.color}` === entry.variantKey);
-      $tbody.append(`
-        <tr>
-          <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">${entry.ref}</td>
-          <td style="color:var(--text-muted);font-size:.8rem;">${entry.date}</td>
-          <td>
-            <div class="product-cell">
-              <div class="product-img">${item.emoji}</div>
-              <div>
-                <div class="product-name">${esc(item.name)}</div>
-                <div class="product-sku">${esc(item.sku)}</div>
-              </div>
-            </div>
-          </td>
-          <td><span class="sku-chip">${esc(entry.variantKey)}</span></td>
-          <td class="qty-plus" style="font-weight:700;font-family:var(--font-mono);">+${entry.qty}</td>
-          <td style="font-size:.8rem;">${entry.note || '—'}</td>
-          <td><span class="badge badge-purchase">Purchase</span></td>
-        </tr>`);
-    });
-  }
+    purchases.forEach(po => {
+        // Show first item only in table
+        const firstItem = po.items && po.items.length ? po.items[0] : null;
 
+        $tbody.append(`
+            <tr>
+                <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">${esc(po.poReference)}</td>
+                <td style="color:var(--text-muted);font-size:.8rem;">${esc(po.purchaseDate)}</td>
+                <td>${firstItem ? esc(firstItem.itemName) : '—'}</td>
+                <td>${firstItem ? esc(firstItem.variantKey) : '—'}</td>
+                <td class="qty-plus" style="font-weight:700;font-family:var(--font-mono);">${firstItem ? '+' + firstItem.quantity : '0'}</td>
+                <td style="font-size:.8rem;">${esc(po.notes || '—')}</td>
+                <td><span class="badge badge-purchase">Purchase</span></td>
+            </tr>
+        `);
+    });
+}
   function init() {
-    renderRecentPurchases();
+    // renderRecentPurchases();
+    loadPurchases();
     $(document).on('click', '#btnNewPurchase', openPurchaseModal);
     $(document).on('click', '#btnAddPurchaseRow', addRow);
     $(document).on('click', '#btnSavePurchase', savePurchase);

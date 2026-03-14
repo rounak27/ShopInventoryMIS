@@ -55,9 +55,9 @@ class PurchaseController extends Controller
             'notes'        => $po->notes ?? '',
             'status'       => $po->status,
             'createdBy'    => $po->creator?->name ?? 'System',
-            'lineCount'    => $po->items?->count() ?? 0,
-            'items'        => ($po->relationLoaded('items')
-                ? $po->items->map(fn ($i) => $this->formatLine($i))->values()->toArray()
+            'lineCount'    => $po->purchaseItems?->count() ?? 0,
+            'items'        => ($po->relationLoaded('purchaseItems')
+                ? $po->purchaseItems->map(fn ($line) => $this->formatLine($line))->values()->toArray()
                 : []),
         ];
     }
@@ -92,6 +92,7 @@ class PurchaseController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        // dd($request->all());
         $purchases = Purchase::with(['items.variant.item', 'creator'])
             ->when($request->search, fn ($q) =>
                 $q->where('supplier_name', 'like', "%{$request->search}%")
@@ -124,20 +125,19 @@ class PurchaseController extends Controller
     {
         // ── 1. Validate ────────────────────────────────────────
         $v = Validator::make($request->all(), [
-            'supplierName'                  => 'required|string|max:150',
-            'supplierId'                    => 'nullable|exists:suppliers,id',
-            'purchaseDate'                  => 'required|date',
-            'notes'                         => 'nullable|string|max:500',
-            'items'                         => 'required|array|min:1',
-            'items.*.variantId'             => 'required|exists:item_variants,id',
-            'items.*.quantity'              => 'required|integer|min:1',
-            'items.*.costPricePerUnit'      => 'required|numeric|min:0',
+            'supplier'     => 'nullable|string|max:150',
+            'supplierId'   => 'nullable|exists:suppliers,id',
+            'date'         => 'required|date',
+            'notes'        => 'nullable|string|max:500',
+            'items'        => 'required|array|min:1',
+            'items.*.variantKey' => 'required|exists:item_variants,id',
+            'items.*.qty'       => 'required|integer|min:1',
+            'items.*.costPrice' => 'required|numeric|min:0',
         ], [
-            'items.required'                => 'At least one purchase line item is required.',
-            'items.*.variantId.required'    => 'Each line must specify a variant.',
-            'items.*.variantId.exists'      => 'One or more variants do not exist.',
-            'items.*.quantity.min'          => 'Quantity must be at least 1 for each line.',
-            'items.*.costPricePerUnit.min'  => 'Cost price cannot be negative.',
+            'items.required' => 'At least one purchase line item is required.',
+            'items.*.variantKey.required' => 'Each line must specify a variant.',
+            'items.*.qty.min' => 'Quantity must be at least 1 for each line.',
+            'items.*.costPrice.min' => 'Cost price cannot be negative.',
         ]);
 
         if ($v->fails()) {
@@ -148,32 +148,39 @@ class PurchaseController extends Controller
             ], 422);
         }
 
-        // ── 2. Execute in a single transaction ─────────────────
+        // ── 2. Transaction ────────────────────────────────────
         try {
             $purchase = DB::transaction(function () use ($request) {
                 $poRef     = $this->generatePoRef();
                 $totalCost = 0;
 
+                // Determine supplier name
+                $supplierName = $request->supplier ?? null;
+                // dd($supplierName);
+                if ($request->supplierId && !$supplierName) {
+                    $supplierName = \App\Models\Supplier::find($request->supplierId)?->name;
+                }
+                // dd($supplierName);
                 // Create purchase header
                 $purchase = Purchase::create([
                     'supplier_id'   => $request->supplierId,
-                    'supplier_name' => $request->supplierName,
-                    'created_by'    => Auth::id(),
+                    'supplier_name' => $supplierName,
+                    'created_by'    => Auth::id()??1,
                     'po_reference'  => $poRef,
-                    'purchase_date' => $request->purchaseDate,
-                    'total_cost'    => 0,          // updated after lines
+                    'purchase_date' => $request->date,
+                    'total_cost'    => 0, // updated after lines
                     'notes'         => $request->notes,
                     'status'        => 'received',
                 ]);
 
                 // Process each line item
                 foreach ($request->items as $line) {
-                    $qty      = (int)   $line['quantity'];
-                    $costUnit = (float) $line['costPricePerUnit'];
+                    $qty      = (int) $line['qty'];
+                    $costUnit = (float) $line['costPrice'];
                     $lineCost = $qty * $costUnit;
 
-                    // Lock variant row to prevent race conditions
-                    $variant = ItemVariant::lockForUpdate()->findOrFail($line['variantId']);
+                    // Lock variant row
+                    $variant = ItemVariant::lockForUpdate()->findOrFail($line['variantKey']);
 
                     $stockBefore = $variant->current_stock;
                     $stockAfter  = $stockBefore + $qty;
@@ -187,38 +194,37 @@ class PurchaseController extends Controller
                         'total_cost'          => $lineCost,
                     ]);
 
-                    // Increase stock
+                    // Update stock
                     $variant->update(['current_stock' => $stockAfter]);
 
                     // Record in ledger
-                    // variantKey = size-color  (matches JS frontend expectation)
                     StockLedger::create([
                         'variant_id'       => $variant->id,
-                        'user_id'          => Auth::id(),
+                        'user_id'          => Auth::id()??1,
                         'purchase_item_id' => $purchaseItem->id,
                         'action_type'      => 'purchase',
                         'quantity_change'  => +$qty,
                         'stock_before'     => $stockBefore,
                         'stock_after'      => $stockAfter,
                         'reference_no'     => $poRef,
-                        'notes'            => $request->notes ?? "Purchase from {$request->supplierName}",
-                        'transaction_date' => $request->purchaseDate,
+                        'notes'            => $request->notes ?? "Purchase from {$supplierName}",
+                        'transaction_date' => $request->date,
                         'created_at'       => now(),
                     ]);
 
                     $totalCost += $lineCost;
                 }
 
-                // Update header total
+                // Update total cost
                 $purchase->update(['total_cost' => $totalCost]);
 
-                return $purchase->load(['items.variant.item', 'creator']);
+                return $purchase->load(['purchaseItems.variant.item', 'creator']);
             });
 
             return response()->json([
                 'success' => true,
                 'message' => "Purchase {$purchase->po_reference} saved. Stock updated for "
-                           . count($request->items) . ' variant(s).',
+                            . count($request->items) . ' variant(s).',
                 'data'    => $this->formatPurchase($purchase),
             ], 201);
 

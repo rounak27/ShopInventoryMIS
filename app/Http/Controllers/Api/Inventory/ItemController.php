@@ -55,6 +55,7 @@ class ItemController extends Controller
             'costPrice'    => (float) $item->cost_price,
             'sellingPrice' => (float) $item->selling_price,
             'description'  => $item->description ?? '',
+            'category'     => $item->category?->name ?? '',
             'emoji'        => $emoji,
             'variants'     => $item->variants->map(fn ($v) => [
                 'id'    => $v->id,
@@ -93,7 +94,7 @@ class ItemController extends Controller
             )
             ->orderBy('name')
             ->paginate($perPage);
-
+        // dd($items->first());
         return response()->json([
             'success' => true,
             'data'    => $items->getCollection()->map(fn ($i) => $this->format($i))->values(),

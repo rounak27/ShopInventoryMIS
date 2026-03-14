@@ -25,7 +25,7 @@ return new class extends Migration
 
             $table->integer('reorder_level')->default(0);
 
-            $table->string('barcode')->unique();
+            $table->string('barcode')->unique()->nullable();
 
             $table->boolean('is_active')->default(true);
 
