@@ -264,88 +264,179 @@ const HistoryMgr = (() => {
     Adjustment: { cls: 'badge-adjustment', label: 'Adjustment' },
     Return:     { cls: 'badge-return',     label: 'Return'     },
   };
+  async function load(page = 1) {
 
+  currentPage = page;
+
+  const params = new URLSearchParams({
+    search: filterSearch || '',
+    type: filterType || '',
+    date_from: filterDateFrom || '',
+    date_to: filterDateTo || '',
+    page: currentPage,
+    per_page: Config.itemsPerPage
+  });
+
+  try {
+    API.get(`/ledger?${params.toString()}`, function(res){
+
+        if(!res.success){
+          console.error("Failed to load stock",res);
+          return;
+        }
+
+        Store.ledger = res.data || [];
+        Store.ledgerMeta = res.meta || null;
+
+        render();
+
+      });
+
+  } catch (err) {
+
+    console.error(err);
+    toast('Ledger API error', 'error');
+
+  }
+
+}
   function render() {
-    let data = Store.ledger.map(entry => {
-      const item = Store.getItem(entry.itemId) || {};
-      return { ...entry, itemName: item.name || '—', sku: item.sku || '—', emoji: item.emoji || '📦' };
+
+  let data = Store.ledger || [];
+
+  const $tbody = $('#historyTableBody');
+  $tbody.empty();
+
+  if (!data.length) {
+
+    $tbody.html(`
+      <tr>
+        <td colspan="8">
+          <div class="empty-state">
+            <i class="bi bi-journal-text"></i>
+            <p>No history records found.</p>
+          </div>
+        </td>
+      </tr>
+    `);
+
+    return;
+  }
+
+  data.forEach(entry => {
+
+    const type = (entry.type || '').toLowerCase();
+
+    const typeConfig = {
+      purchase:   { cls: 'badge-purchase',   label: 'Purchase' },
+      sale:       { cls: 'badge-sale',       label: 'Sale' },
+      adjustment: { cls: 'badge-adjustment', label: 'Adjustment' },
+      return:     { cls: 'badge-return',     label: 'Return' },
+      damage:     { cls: 'badge-adjustment', label: 'Damage' }
+    };
+
+    const tc = typeConfig[type] || { cls: 'badge-dark', label: type };
+
+    const qty = entry.qty;
+
+    $tbody.append(`
+
+      <tr>
+
+        <td style="color:var(--text-muted);font-size:.8rem;white-space:nowrap;">
+          ${entry.date}
+        </td>
+
+        <td>
+          <div class="product-cell">
+            <div class="product-img">📦</div>
+            <div>
+              <div class="product-name">${esc(entry.itemName)}</div>
+              <div class="product-sku">${esc(entry.sku)}</div>
+            </div>
+          </div>
+        </td>
+
+        <td>
+          <span class="sku-chip">${esc(entry.variantKey)}</span>
+        </td>
+
+        <td>
+          <span class="badge ${tc.cls}">
+            ${tc.label}
+          </span>
+        </td>
+
+        <td class="qty-change ${qty >= 0 ? 'qty-plus' : 'qty-minus'}"
+            style="font-family:var(--font-mono);font-weight:700;">
+          ${qty >= 0 ? '+' : ''}${qty}
+        </td>
+
+        <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">
+          ${entry.ref || '—'}
+        </td>
+
+        <td style="font-size:.78rem;color:var(--text-muted);
+                   max-width:160px;overflow:hidden;
+                   text-overflow:ellipsis;white-space:nowrap;"
+            title="${esc(entry.note || '')}">
+          ${esc(entry.note || '—')}
+        </td>
+
+        <td style="font-size:.78rem;color:var(--text-muted);">
+          ${entry.user}
+        </td>
+
+      </tr>
+
+    `);
+
+  });
+
+  /* Pagination */
+
+  const meta = Store.ledgerMeta;
+
+  if (meta) {
+
+    $('#historyPaginationInfo').text(
+      `Page ${meta.currentPage} of ${meta.lastPage} (${meta.total} records)`
+    );
+
+    renderPaginationBtns($('#historyPaginationBtns'), meta, (p) => {
+      load(p);
     });
 
-    if (filterSearch) {
-      const q = filterSearch.toLowerCase();
-      data = data.filter(e => e.itemName.toLowerCase().includes(q) || (e.ref || '').toLowerCase().includes(q) || (e.note || '').toLowerCase().includes(q));
-    }
-    if (filterType)     data = data.filter(e => e.type === filterType);
-    if (filterDateFrom) data = data.filter(e => e.date >= filterDateFrom);
-    if (filterDateTo)   data = data.filter(e => e.date <= filterDateTo);
-
-    // Sort by date desc (already in reverse insert order but ensure)
-    data.sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
-
-    const pg     = paginate(data, currentPage, Config.itemsPerPage);
-    const $tbody = $('#historyTableBody');
-    $tbody.empty();
-
-    if (!pg.data.length) {
-      $tbody.html(`<tr><td colspan="8"><div class="empty-state"><i class="bi bi-journal-text"></i><p>No history records found.</p></div></td></tr>`);
-    } else {
-      pg.data.forEach(entry => {
-        const tc  = typeConfig[entry.type] || { cls: 'badge-dark', label: entry.type };
-        const qty = entry.qty;
-        $tbody.append(`
-          <tr>
-            <td style="color:var(--text-muted);font-size:.8rem;white-space:nowrap;">${entry.date}</td>
-            <td>
-              <div class="product-cell">
-                <div class="product-img">${entry.emoji}</div>
-                <div>
-                  <div class="product-name">${esc(entry.itemName)}</div>
-                  <div class="product-sku">${esc(entry.sku)}</div>
-                </div>
-              </div>
-            </td>
-            <td><span class="sku-chip">${esc(entry.variantKey)}</span></td>
-            <td><span class="badge ${tc.cls}">${tc.label}</span></td>
-            <td class="qty-change ${qty >= 0 ? 'qty-plus' : 'qty-minus'}" style="font-family:var(--font-mono);font-weight:700;">
-              ${qty >= 0 ? '+' : ''}${qty}
-            </td>
-            <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">${entry.ref || '—'}</td>
-            <td style="font-size:.78rem;color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(entry.note || '')}">${esc(entry.note || '—')}</td>
-            <td style="font-size:.78rem;color:var(--text-muted);">${entry.user}</td>
-          </tr>`);
-      });
-    }
-
-    $('#historyPaginationInfo').text(`Showing ${pg.start+1}–${Math.min(pg.start+pg.perPage, pg.total)} of ${pg.total} records`);
-    renderPaginationBtns($('#historyPaginationBtns'), pg, (p) => { currentPage = p; render(); });
   }
+
+}
 
   function init() {
-    render();
 
-    // Search
-    $('#historySearchInput').on('input', function () {
-      filterSearch = $(this).val().trim();
-      currentPage  = 1;
-      render();
-    });
+  load(1);
 
-    // Type filter
-    $('#historyFilterType').on('change', function () {
-      filterType  = $(this).val();
-      currentPage = 1;
-      render();
-    });
+  // Search
+  $('#historySearchInput').on('input', function () {
+    filterSearch = $(this).val().trim();
+    load(1);
+  });
 
-    // Date filters
-    $('#historyDateFrom').on('change', function () { filterDateFrom = $(this).val(); currentPage = 1; render(); });
-    $('#historyDateTo').on('change',   function () { filterDateTo   = $(this).val(); currentPage = 1; render(); });
+  $('#historyFilterType').on('change', function () {
+    filterType = $(this).val();
+    load(1);
+  });
 
-    // Export CSV stub
-    $(document).on('click', '#btnExportHistory', function () {
-      toast('Exporting ledger to CSV…', 'info');
-    });
-  }
+  $('#historyDateFrom').on('change', function () {
+    filterDateFrom = $(this).val();
+    load(1);
+  });
+
+  $('#historyDateTo').on('change', function () {
+    filterDateTo = $(this).val();
+    load(1);
+  });
+
+}
 
   return { init, render };
 })();

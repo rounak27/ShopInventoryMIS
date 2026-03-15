@@ -47,9 +47,10 @@ class StockController extends Controller
 
     public function adjust(Request $request): JsonResponse
     {
+        // dd($request->all());
         // ── Determine which validation rules to apply ──────────
         $operation = $request->operation ?? 'adjustment';
-
+        // dd($operation);
         $baseRules = [
             'variantId' => 'required|exists:item_variants,id',
             'operation' => 'required|in:in,out,adjustment',
@@ -90,7 +91,7 @@ class StockController extends Controller
                 'errors'  => $v->errors()->toArray(),
             ], 422);
         }
-
+        // dd($request->all());
         try {
             $result = DB::transaction(function () use ($request, $operation) {
                 // Lock variant row — prevents concurrent stock mutations
@@ -274,7 +275,7 @@ class StockController extends Controller
     ): StockLedger {
         return StockLedger::create([
             'variant_id'      => $variant->id,
-            'user_id'         => Auth::id(),
+            'user_id'         => Auth::id()??1,
             'action_type'     => $actionType,
             'quantity_change' => $qtyChange,
             'stock_before'    => $before,

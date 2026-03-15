@@ -143,15 +143,13 @@ const StockMgr = (() => {
       currentPage = page;
 
       const params = new URLSearchParams({
-        page,
-        per_page: Config.itemsPerPage,
-        search: filterSearch || '',
-        date_from: filterDateFrom || '',
-        date_to: filterDateTo || '',
-        item_id: filterItemId || ''
+        search: filterSearch,
+        category_id: filterCat,
+        status: filterStatus,
+        per_page: 50
       });
 
-      API.get(`/ledger?${params.toString()}`, function(res){
+      API.get(`/variants?${params.toString()}`, function(res){
 
         if(!res.success){
           console.error("Failed to load stock",res);
@@ -209,110 +207,265 @@ const StockMgr = (() => {
   }
 
   /* ── Render stock table ── */
-  function render() {
-    let data = Store.stockRows || [];
-    console.log(data,"Stock LEdger Data");
+  // function render() {
+  //   let data = Store.stockRows || [];
+  //   console.log(data,"Stock LEdger Data");
     
-    if (filterSearch) {
-      const q = filterSearch.toLowerCase();
-      data = data.filter(r => r.itemName.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q));
-    }
-    if (filterCat)    data = data.filter(r => r.categoryId === parseInt(filterCat));
-    // category filtering not supported by ledger API
+  //   if (filterSearch) {
+  //     const q = filterSearch.toLowerCase();
+  //     data = data.filter(r => r.itemName.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q));
+  //   }
+  //   if (filterCat)    data = data.filter(r => r.categoryId === parseInt(filterCat));
+  //   // category filtering not supported by ledger API
     
-    // remove or implement using item_id parameter
+  //   // remove or implement using item_id parameter
 
-    if (filterStatus === 'in')
-      data = data.filter(r => r.stockAfter > Config.lowStockThresh);
+  //   if (filterStatus === 'in')
+  //     data = data.filter(r => r.stockAfter > Config.lowStockThresh);
 
-    if (filterStatus === 'low')
-      data = data.filter(r => r.stockAfter > 0 && r.stockAfter <= Config.lowStockThresh);
+  //   if (filterStatus === 'low')
+  //     data = data.filter(r => r.stockAfter > 0 && r.stockAfter <= Config.lowStockThresh);
 
-    if (filterStatus === 'out')
-    data = data.filter(r => r.stockAfter === 0);
-    const pg = { data: data };
-    console.log(pg.data,"Filtered Stock Data");
-    const $tbody = $('#stockTableBody');
-    $tbody.empty();
+  //   if (filterStatus === 'out')
+  //   data = data.filter(r => r.stockAfter === 0);
+  //   const pg = { data: data };
+  //   console.log(pg.data,"Filtered Stock Data");
+  //   const $tbody = $('#stockTableBody');
+  //   $tbody.empty();
 
-    if (!pg.data.length) {
-      $tbody.html(`<tr><td colspan="9"><div class="empty-state"><i class="bi bi-clipboard2-data"></i><p>No stock records found.</p></div></td></tr>`);
-    } else {
-      pg.data.forEach(row => {
-        console.log('Rendering row:', row);
-        const qtyClass = row.qty >= 0 ? 'qty-plus' : 'qty-minus';
-        // console.log("Row:",qtyClass);
+  //   if (!pg.data.length) {
+  //     $tbody.html(`<tr><td colspan="9"><div class="empty-state"><i class="bi bi-clipboard2-data"></i><p>No stock records found.</p></div></td></tr>`);
+  //   } else {
+  //     pg.data.forEach(row => {
+  //       console.log('Rendering row:', row);
+  //       const qtyClass = row.qty >= 0 ? 'qty-plus' : 'qty-minus';
+  //       // console.log("Row:",qtyClass);
         
-        $tbody.append(`
-          <tr>
+  //       $tbody.append(`
+  //         <tr>
 
-            <td>
-              <div class="product-cell">
-                <div class="product-img">📦</div>
-                <div>
-                  <div class="product-name">${esc(row.itemName)}</div>
-                  <div class="product-sku">${esc(row.sku)}</div>
-                </div>
+  //           <td>
+  //             <div class="product-cell">
+  //               <div class="product-img">📦</div>
+  //               <div>
+  //                 <div class="product-name">${esc(row.itemName)}</div>
+  //                 <div class="product-sku">${esc(row.sku)}</div>
+  //               </div>
+  //             </div>
+  //           </td>
+
+  //           <td>
+  //             <span class="sku-chip">${esc(row.variantSize)}</span>
+  //             <span style="margin:0 3px;color:var(--text-xlight);">|</span>
+  //             <span style="font-size:.78rem;color:var(--text-muted);">${esc(row.variantColor)}</span>
+  //           </td>
+
+  //           <td style="font-family:var(--font-mono);font-weight:700;text-align:center;">
+  //             ${row.stockAfter}
+  //           </td>
+
+  //           <td class="${qtyClass}" style="font-family:var(--font-mono);font-weight:700;">
+  //             ${row.qty >= 0 ? '+' : ''}${row.qty}
+  //           </td>
+
+  //           <td style="font-size:.8rem;color:var(--text-muted);">
+  //             ${esc(row.note || '—')}
+  //           </td>
+
+  //           <td>
+  //             <span class="badge badge-${row.type}">
+  //               ${row.type}
+  //             </span>
+  //           </td>
+
+  //           <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">
+  //             ${esc(row.ref)}
+  //           </td>
+  //           <td>
+  //             <div style="display:flex;gap:4px;flex-wrap:wrap;">
+  //               <button class="btn btn-sm btn-success stock-in-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Add Stock">
+  //                 <i class="bi bi-plus-circle"></i> In
+  //               </button>
+  //               <button class="btn btn-sm btn-danger stock-out-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Remove Stock">
+  //                 <i class="bi bi-dash-circle"></i> Out
+  //               </button>
+  //               <button class="btn btn-sm btn-outline stock-adj-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Adjust Stock">
+  //                 <i class="bi bi-sliders"></i>
+  //               </button>
+  //             </div>
+  //           </td>
+  //         </tr>
+  //       `);
+
+  //     });
+  //   }
+
+  //   const meta = Store.stockMeta;
+
+  //   $('#stockPaginationInfo').text(
+  //     `Page ${meta.currentPage} of ${meta.lastPage} (${meta.total} records)`
+  //   );
+
+  //   renderPaginationBtns($('#stockPaginationBtns'), meta, (p)=>{
+  //     loadStock(p);
+  //   });
+  // }
+  /* ── Render Current Stock Table ── */
+function render() {
+
+  let data = Store.stockRows || [];
+
+  console.log(data, "Current Stock Data");
+
+  /* ── Local Filters (optional if API already filters) ── */
+
+  if (filterSearch) {
+    const q = filterSearch.toLowerCase();
+
+    data = data.filter(r =>
+      r.itemName.toLowerCase().includes(q) ||
+      r.sku.toLowerCase().includes(q)
+    );
+  }
+
+  if (filterCat) {
+    data = data.filter(r => r.categoryId === parseInt(filterCat));
+  }
+
+  if (filterStatus) {
+    data = data.filter(r => r.status === filterStatus);
+  }
+
+  const pg = { data: data };
+
+  const $tbody = $('#stockTableBody');
+  $tbody.empty();
+
+  /* ── Empty State ── */
+
+  if (!pg.data.length) {
+
+    $tbody.html(`
+      <tr>
+        <td colspan="8">
+          <div class="empty-state">
+            <i class="bi bi-clipboard2-data"></i>
+            <p>No stock records found.</p>
+          </div>
+        </td>
+      </tr>
+    `);
+
+  } else {
+
+    /* ── Render Rows ── */
+
+    pg.data.forEach(row => {
+
+      const statusClass = {
+        in_stock: 'in-stock',
+        low_stock: 'low-stock',
+        out_of_stock: 'out-of-stock'
+      }[row.status] || 'in';
+      console.log(statusClass,"Row");
+      
+      $tbody.append(`
+
+        <tr>
+
+          <td>
+            <div class="product-cell">
+              <div class="product-img">📦</div>
+              <div>
+                <div class="product-name">${esc(row.itemName)}</div>
+                <div class="product-sku">${esc(row.sku)}</div>
               </div>
-            </td>
+            </div>
+          </td>
 
-            <td>
-              <span class="sku-chip">${esc(row.variantSize)}</span>
-              <span style="margin:0 3px;color:var(--text-xlight);">|</span>
-              <span style="font-size:.78rem;color:var(--text-muted);">${esc(row.variantColor)}</span>
-            </td>
+          <td>
+            <span class="sku-chip">${esc(row.size)}</span>
+            <span style="margin:0 3px;color:var(--text-xlight);">/</span>
+            <span style="font-size:.78rem;color:var(--text-muted);">${esc(row.color)}</span>
+          </td>
 
-            <td style="font-family:var(--font-mono);font-weight:700;text-align:center;">
-              ${row.stockAfter}
-            </td>
+          <td>
+            ${esc(row.categoryName || '—')}
+          </td>
 
-            <td class="${qtyClass}" style="font-family:var(--font-mono);font-weight:700;">
-              ${row.qty >= 0 ? '+' : ''}${row.qty}
-            </td>
+          <td style="text-align:center;font-family:var(--font-mono);font-weight:700;">
+            ${row.stock}
+          </td>
 
-            <td style="font-size:.8rem;color:var(--text-muted);">
-              ${esc(row.note || '—')}
-            </td>
+          <td>
+            ${row.costPrice}
+          </td>
 
-            <td>
-              <span class="badge badge-${row.type}">
-                ${row.type}
-              </span>
-            </td>
+          <td>
+            ${row.sellingPrice}
+          </td>
 
-            <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">
-              ${esc(row.ref)}
-            </td>
-            <td>
-              <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                <button class="btn btn-sm btn-success stock-in-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Add Stock">
-                  <i class="bi bi-plus-circle"></i> In
-                </button>
-                <button class="btn btn-sm btn-danger stock-out-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Remove Stock">
-                  <i class="bi bi-dash-circle"></i> Out
-                </button>
-                <button class="btn btn-sm btn-outline stock-adj-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Adjust Stock">
-                  <i class="bi bi-sliders"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        `);
+          <td>
+            <span class="badge badge-${statusClass}">
+              ${row.status.replace('_',' ')}
+            </span>
+          </td>
 
-      });
-    }
+          <td>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
 
-    const meta = Store.stockMeta;
+              <button 
+                class="btn btn-sm btn-success stock-in-btn"
+                data-item="${row.itemId}"
+                data-vk="${row.variantKey}"
+                title="Add Stock">
+                <i class="bi bi-plus-circle"></i>
+              </button>
+
+              <button 
+                class="btn btn-sm btn-danger stock-out-btn"
+                data-item="${row.itemId}"
+                data-vk="${row.variantKey}"
+                title="Remove Stock">
+                <i class="bi bi-dash-circle"></i>
+              </button>
+
+              <button 
+                class="btn btn-sm btn-outline stock-adj-btn"
+                data-item="${row.itemId}"
+                data-vk="${row.variantKey}"
+                title="Adjust Stock">
+                <i class="bi bi-sliders"></i>
+              </button>
+
+            </div>
+          </td>
+
+        </tr>
+
+      `);
+
+    });
+
+  }
+
+  /* ── Pagination ── */
+
+  const meta = Store.stockMeta;
+
+  if (meta) {
 
     $('#stockPaginationInfo').text(
       `Page ${meta.currentPage} of ${meta.lastPage} (${meta.total} records)`
     );
 
-    renderPaginationBtns($('#stockPaginationBtns'), meta, (p)=>{
+    renderPaginationBtns($('#stockPaginationBtns'), meta, (p) => {
       loadStock(p);
     });
+
   }
 
+}
   /* ── Filter by item (called from Items page) ── */
   function filterByItem(itemId) {
     const item = Store.getItem(itemId);
@@ -347,33 +500,73 @@ const StockMgr = (() => {
   }
 
   /* ── Save Stock In/Out ── */
+  /* ── Save Stock In/Out ── */
   function saveStockInOut() {
+
     const qty    = parseInt($('#stockQty').val());
     const reason = $('#stockReason').val().trim();
     const date   = $('#stockDate').val() || today();
-    const type   = $('#stockInOutType').val();
+    const type   = $('#stockInOutType').val(); // in | out
 
-    if (!qty || qty <= 0) { toast('Enter a valid quantity (> 0).', 'warning'); return; }
-
-    const delta  = type === 'in' ? qty : -qty;
-    const action = type === 'in' ? 'Purchase' : 'Sale';
-
-    // Validate out stock
-    if (type === 'out') {
-      const item    = Store.getItem(activeItemId);
-      const variant = item.variants.find(v => `${v.size}-${v.color}` === activeVariantKey);
-      if (variant.stock < qty) { toast(`Only ${variant.stock} units in stock. Cannot remove ${qty}.`, 'warning'); return; }
+    if (!qty || qty <= 0) {
+      toast('Enter a valid quantity (> 0).', 'warning');
+      return;
     }
 
-    const entry = { date, itemId: activeItemId, variantKey: activeVariantKey, type: action, qty: delta, ref: `${action.toUpperCase().slice(0,3)}-${Date.now().toString().slice(-5)}`, user: 'Admin', note: reason };
-    API.post('/stock/move', entry);
-    Store.addLedgerEntry(entry);
+    const item    = Store.getItem(activeItemId);
+    const variant = item.variants.find(v => `${v.size}-${v.color}` === activeVariantKey);
 
-    toast(`Stock ${type === 'in' ? 'added' : 'removed'} successfully!`, 'success');
-    closeModal('stockInOutModal');
-    render();
-    HistoryMgr.render();
-    refreshStats();
+    if (!variant) {
+      toast('Variant not found.', 'danger');
+      return;
+    }
+
+    /* validate stock for OUT */
+    if (type === 'out' && variant.stock < qty) {
+      toast(`Only ${variant.stock} units available.`, 'warning');
+      return;
+    }
+
+    const payload = {
+      variantId: variant.id,
+      operation: type, // in | out
+      quantity: qty,
+      reason: reason || (type === 'in' ? 'Manual stock in' : 'Manual stock out'),
+      date: date,
+      note: reason
+    };
+
+    API.post('/stock/adjust', payload)
+      .then(res => {
+
+        if (!res.success) {
+          toast(res.message || 'Stock update failed.', 'danger');
+          return;
+        }
+
+        const data = res.data;
+
+        /* update variant stock locally */
+        Store.updateVariantStock(data.variant.id, data.variant.stock);
+
+        /* push ledger entry to UI */
+        if (data.ledgerEntry) {
+          Store.addLedgerEntry(data.ledgerEntry);
+        }
+
+        toast(res.message, 'success');
+
+        closeModal('stockInOutModal');
+
+        render();
+        HistoryMgr.render();
+        refreshStats();
+
+      })
+      .catch(err => {
+        console.error(err);
+        toast('Server error occurred.', 'danger');
+      });
   }
 
   /* ── Open Adjust modal ── */

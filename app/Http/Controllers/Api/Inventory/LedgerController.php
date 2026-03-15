@@ -90,7 +90,7 @@ class LedgerController extends Controller
             'variantSize' => $entry->variant?->size  ?? '',
             'variantColor'=> $entry->variant?->color ?? '',
         ])->values();
-
+        // dd($data);
         return response()->json([
             'success' => true,
             'data'    => $data,
