@@ -219,6 +219,7 @@ const StockMgr = (() => {
     }
     if (filterCat)    data = data.filter(r => r.categoryId === parseInt(filterCat));
     // category filtering not supported by ledger API
+    
     // remove or implement using item_id parameter
 
     if (filterStatus === 'in')
@@ -238,7 +239,7 @@ const StockMgr = (() => {
       $tbody.html(`<tr><td colspan="9"><div class="empty-state"><i class="bi bi-clipboard2-data"></i><p>No stock records found.</p></div></td></tr>`);
     } else {
       pg.data.forEach(row => {
-        // log('Rendering row:', row);
+        console.log('Rendering row:', row);
         const qtyClass = row.qty >= 0 ? 'qty-plus' : 'qty-minus';
         // console.log("Row:",qtyClass);
         
@@ -282,7 +283,19 @@ const StockMgr = (() => {
             <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">
               ${esc(row.ref)}
             </td>
-
+            <td>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="btn btn-sm btn-success stock-in-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Add Stock">
+                  <i class="bi bi-plus-circle"></i> In
+                </button>
+                <button class="btn btn-sm btn-danger stock-out-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Remove Stock">
+                  <i class="bi bi-dash-circle"></i> Out
+                </button>
+                <button class="btn btn-sm btn-outline stock-adj-btn" data-item="${row.itemId}" data-vk="${row.variantKey}" title="Adjust Stock">
+                  <i class="bi bi-sliders"></i>
+                </button>
+              </div>
+            </td>
           </tr>
         `);
 
