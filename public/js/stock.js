@@ -588,21 +588,68 @@ function render() {
 
   /* ── Save Adjustment ── */
   function saveAdjustment() {
+
     const actual = parseInt($('#adjActualQty').val());
     const reason = $('#adjReason').val().trim();
     const date   = $('#adjDate').val() || today();
 
-    if (isNaN(actual) || actual < 0) { toast('Enter a valid actual quantity.', 'warning'); return; }
+    if (isNaN(actual) || actual < 0) {
+      toast('Enter a valid actual quantity.', 'warning');
+      return;
+    }
 
-    const payload = { itemId: activeItemId, variantKey: activeVariantKey, actualQty: actual, reason, date };
-    API.post('/stock/adjust', payload);
+    const item = Store.getItem(activeItemId);
 
-    Store.stockAdjust(activeItemId, activeVariantKey, actual, reason);
-    toast('Stock adjusted successfully!', 'success');
-    closeModal('adjModal');
-    render();
-    HistoryMgr.render();
-    refreshStats();
+    const variant = item.variants.find(
+      v => `${v.size}-${v.color}` === activeVariantKey
+    );
+
+    if (!variant) {
+      toast('Variant not found.', 'danger');
+      return;
+    }
+
+    const payload = {
+      variantId: variant.id,
+      operation: 'adjustment',
+      actualQty: actual,
+      reason: reason || 'Manual stock adjustment',
+      date: date,
+      note: reason
+    };
+
+    API.post('/stock/adjust', payload)
+      .then(res => {
+
+        if (!res.success) {
+          toast(res.message || 'Stock adjustment failed.', 'danger');
+          return;
+        }
+
+        const data = res.data;
+
+        /* update variant stock locally */
+        Store.updateVariantStock(data.variant.id, data.variant.stock);
+
+        /* push ledger entry */
+        if (data.ledgerEntry) {
+          Store.addLedgerEntry(data.ledgerEntry);
+        }
+
+        toast(res.message || 'Stock adjusted successfully!', 'success');
+
+        closeModal('adjModal');
+
+        render();
+        HistoryMgr.render();
+        refreshStats();
+
+      })
+      .catch(err => {
+        console.error(err);
+        toast('Server error occurred.', 'danger');
+      });
+
   }
 
   function init() {

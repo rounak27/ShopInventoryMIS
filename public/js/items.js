@@ -207,7 +207,7 @@ const ItemMgr = (() => {
   /* ── Populate category dropdowns ── */
   function populateCatDropdowns() {
     console.log('Populating category dropdowns with categories:', Store.categories);
-    const $selectors = $('#itemCategorySelect, #itemFilterCat');
+    const $selectors = $('#itemCategorySelect, #itemFilterCat,#stockFilterCat');
     $selectors.each(function () {
       const isFilter = this.id === 'itemFilterCat';
       const cur = $(this).val();

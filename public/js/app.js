@@ -263,11 +263,18 @@ function renderPaginationBtns($container, info, onPage) {
 //   */
 // };
 const API = {
+  getToken() {
+    return localStorage.getItem('token');
+  },
 
   get(endpoint, cb) {
     $.ajax({
       url: Config.apiBase + endpoint,
       method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${API.getToken()}`,
+        'Accept': 'application/json'
+      },
       success: cb,
       error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
     });
@@ -279,7 +286,10 @@ const API = {
       method: 'POST',
       data: JSON.stringify(data),
       contentType: 'application/json',
-      headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+      headers: {
+        'Authorization': `Bearer ${API.getToken()}`,
+        'Accept': 'application/json'
+      },
       success: cb,
       error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
     });
@@ -291,7 +301,10 @@ const API = {
       method: 'PUT',
       data: JSON.stringify(data),
       contentType: 'application/json',
-      headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+      headers: {
+        'Authorization': `Bearer ${API.getToken()}`,
+        'Accept': 'application/json'
+      },
       success: cb,
       error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
     });
@@ -301,7 +314,10 @@ const API = {
     $.ajax({
       url: Config.apiBase + endpoint,
       method: 'DELETE',
-      headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+      headers: {
+        'Authorization': `Bearer ${API.getToken()}`,
+        'Accept': 'application/json'
+      },
       success: cb,
       error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
     });
