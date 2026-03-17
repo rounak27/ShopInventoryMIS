@@ -172,11 +172,16 @@ function esc(s)  { return $('<span>').text(s).html(); }
 
 /* ── Toast Notifications ── */
 function toast(msg, type = 'success') {
-  const icons = { success:'check-circle-fill', danger:'x-circle-fill', warning:'exclamation-triangle-fill', info:'info-circle-fill' };
-  const $t = $(`<div class="toast toast-${type}"><i class="bi bi-${icons[type]}"></i><span>${msg}</span></div>`);
-  $('#toastContainer').append($t);
-  setTimeout(() => $t.css({ opacity:0, transform:'translateX(20px)', transition: 'all .3s' }), 2800);
-  setTimeout(() => $t.remove(), 3100);
+  // Map custom types to toastr types
+  const typeMap = {
+    success: 'success',
+    danger: 'error',
+    warning: 'warning',
+    info: 'info'
+  };
+  
+  const toastrType = typeMap[type] || 'info';
+  toastr[toastrType](msg);
 }
 
 /* ── Modal helpers ── */
@@ -279,21 +284,36 @@ const API = {
       error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
     });
   },
-
-  post(endpoint, data, cb) {
-    $.ajax({
-      url: Config.apiBase + endpoint,
-      method: 'POST',
-      data: JSON.stringify(data),
-      contentType: 'application/json',
-      headers: {
+  post(endpoint, data) {
+    return new Promise((resolve, reject) => {
+        $.ajax({
+        url: Config.apiBase + endpoint,
+        method: 'POST',
+        data: JSON.stringify(data),
+        contentType: 'application/json',
+        headers: {
         'Authorization': `Bearer ${API.getToken()}`,
         'Accept': 'application/json'
       },
-      success: cb,
-      error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
+        success: (res) => resolve(res),
+        error: (xhr) => reject(xhr.responseJSON || { message: 'Server error' }),
+        });
     });
-  },
+},
+  // post(endpoint, data, cb) {
+  //   $.ajax({
+  //     url: Config.apiBase + endpoint,
+  //     method: 'POST',
+  //     data: JSON.stringify(data),
+  //     contentType: 'application/json',
+  //     headers: {
+  //       'Authorization': `Bearer ${API.getToken()}`,
+  //       'Accept': 'application/json'
+  //     },
+  //     success: cb,
+  //     error: (xhr) => reject(xhr.responseJSON || { message: 'Server error' }),
+  //   });
+  // },
 
   put(endpoint, data, cb) {
     $.ajax({

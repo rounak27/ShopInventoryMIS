@@ -14,6 +14,7 @@ Route::prefix('v1')->group(function () {
         return response()->json(['ok' => true]);
     });   
     Route::post('/auth/login', [AuthController::class,'login']);
+    Route::post('/auth/register', [AuthController::class,'register']);
     Route::middleware('jwt.auth')->group(function () {
         Route::post('/auth/logout', [AuthController::class,'logout']);
         Route::prefix('inventory')->group(function () {

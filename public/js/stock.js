@@ -547,7 +547,7 @@ function render() {
         const data = res.data;
 
         /* update variant stock locally */
-        Store.updateVariantStock(data.variant.id, data.variant.stock);
+        // Store.updateVariantStock(data.variant.id, data.variant.stock);
 
         /* push ledger entry to UI */
         if (data.ledgerEntry) {
@@ -629,7 +629,7 @@ function render() {
         const data = res.data;
 
         /* update variant stock locally */
-        Store.updateVariantStock(data.variant.id, data.variant.stock);
+        // Store.updateVariantStock(data.variant.id, data.variant.stock);
 
         /* push ledger entry */
         if (data.ledgerEntry) {

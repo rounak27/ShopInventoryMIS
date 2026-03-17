@@ -47,6 +47,8 @@ const PurchaseMgr = (() => {
 
   /* ── Update variant select when item changes ── */
   function updateVariantSelect($row) {
+    console.log("This is row:",$row);
+    
     const itemId   = parseInt($row.find('.pr-item').val());
     const $variant = $row.find('.pr-variant');
     $variant.empty();

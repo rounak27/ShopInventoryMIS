@@ -31,27 +31,29 @@ class JwtAuthMiddleware
 
     //     return $next($request);
     // }
-    public function handle($request, Closure $next)
+    public function handle(Request $request, Closure $next): Response
     {
-        // Debug: Check if the header is even arriving at your PHP script
-        dd($request->header('Authorization')); 
+        // Some Apache/PHP setups expose Authorization only in server vars.
+        $authHeader = $request->header('Authorization')
+            ?? $request->server('HTTP_AUTHORIZATION')
+            ?? $request->server('REDIRECT_HTTP_AUTHORIZATION');
+
+        if ($authHeader && ! $request->headers->has('Authorization')) {
+            $request->headers->set('Authorization', $authHeader);
+        }
 
         try {
-            // Force the library to look at the bearer token specifically
-            if (!$token = JWTAuth::getToken()) {
+            if (! $token = JWTAuth::getToken()) {
                 return response()->json(['message' => 'Token not provided'], 401);
             }
 
             $user = JWTAuth::authenticate($token);
             
-            if (!$user) {
+            if (! $user) {
                 return response()->json(['message' => 'User not found'], 401);
             }
         } catch (JWTException $e) {
-            return response()->json([
-                'message' => 'Unauthenticated.',
-                'debug_error' => $e->getMessage() // This will tell us EXACTLY why it failed
-            ], 401);
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
         return $next($request);
