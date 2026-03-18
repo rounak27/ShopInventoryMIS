@@ -345,19 +345,47 @@ const API = {
 };
 /* ── Update Dashboard Stats ── */
 function refreshStats() {
-  $('#statTotalItems').text(Store.items.length);
-  $('#statTotalVariants').text(Store.items.reduce((s, i) => s + i.variants.length, 0));
-  $('#statLowStock').text(Store.getLowStockCount());
-  $('#statOutOfStock').text(Store.getOutOfStockCount());
-  $('#statStockValue').text(fmt(Store.getStockValue()));
-  $('#statTotalStock').text(Store.getTotalStock().toLocaleString());
-  // Low stock alert banner
-  const low = Store.getLowStockCount();
-  const out = Store.getOutOfStockCount();
-  const $alerts = $('#dashAlerts');
-  $alerts.empty();
-  if (out > 0) $alerts.append(`<div class="alert-box alert-out"><i class="bi bi-x-circle-fill"></i><span><strong>${out} variant${out>1?'s':''}</strong> are out of stock. Please restock immediately.</span></div>`);
-  if (low > 0) $alerts.append(`<div class="alert-box alert-low"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>${low} variant${low>1?'s':''}</strong> are running low (≤${Config.lowStockThresh} units).</span></div>`);
+  const applyStats = (items, totalItemsOverride = null) => {
+    const totalItems = totalItemsOverride ?? items.length;
+    const totalVariants = items.reduce((sum, item) => sum + ((item.variants || []).length), 0);
+
+    let totalStock = 0;
+    let low = 0;
+    let out = 0;
+    let stockValue = 0;
+
+    items.forEach(item => {
+      const costPrice = parseFloat(item.costPrice ?? item.cost_price ?? 0);
+      (item.variants || []).forEach(variant => {
+        const stock = parseInt(variant.stock ?? variant.current_stock ?? 0, 10) || 0;
+        totalStock += stock;
+        stockValue += stock * costPrice;
+
+        if (stock === 0) out += 1;
+        else if (stock <= Config.lowStockThresh) low += 1;
+      });
+    });
+
+    $('#statTotalItems').text(totalItems);
+    $('#statTotalVariants').text(totalVariants);
+    $('#statLowStock').text(low);
+    $('#statOutOfStock').text(out);
+    $('#statStockValue').text(fmt(stockValue));
+    $('#statTotalStock').text(totalStock.toLocaleString());
+
+    // Low stock alert banner
+    const $alerts = $('#dashAlerts');
+    $alerts.empty();
+    if (out > 0) $alerts.append(`<div class="alert-box alert-out"><i class="bi bi-x-circle-fill"></i><span><strong>${out} variant${out > 1 ? 's' : ''}</strong> are out of stock. Please restock immediately.</span></div>`);
+    if (low > 0) $alerts.append(`<div class="alert-box alert-low"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>${low} variant${low > 1 ? 's' : ''}</strong> are running low (≤${Config.lowStockThresh} units).</span></div>`);
+  };
+
+  API.get('/items?per_page=1000', function (res) {
+    const items = Array.isArray(res?.data) ? res.data : [];
+    const totalItemsFromMeta = parseInt(res?.meta?.total, 10);
+    const totalItems = Number.isFinite(totalItemsFromMeta) ? totalItemsFromMeta : items.length;
+    applyStats(items, totalItems);
+  });
 }
 
 /* ── Page Navigation ── */
@@ -385,6 +413,14 @@ function showPage(pageId) {
 
 /* ── Boot ── */
 $(document).ready(function () {
+  const token = localStorage.getItem('token');
+  console.log("Token:",token);
+  
+  if (!token) {
+    window.location.href = `${baseURL}/login?auth=required`;
+    return;
+  }
+
   // Store.loadCategories(0);
   ItemMgr.loadItems();
   refreshStats();
@@ -393,6 +429,20 @@ $(document).ready(function () {
   // Nav clicks
   $(document).on('click', '.nav-link', function () {
     showPage($(this).data('page'));
+  });
+
+  // Logout flow
+  $(document).on('click', '.user-logout', function () {
+    const modalEl = document.getElementById('logoutConfirmModal');
+    if (!modalEl) return;
+
+    const logoutModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    logoutModal.show();
+  });
+
+  $(document).on('click', '#confirmLogoutBtn', function () {
+    localStorage.clear();
+    window.location.href = `${baseURL}/login`;
   });
 
   // Sidebar toggle (mobile)
