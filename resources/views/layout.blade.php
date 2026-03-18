@@ -110,6 +110,13 @@
 
     @yield('content')
 
+    <footer class="border-top bg-white" style="padding:14px 18px;margin-top:18px;">
+      <div class="text-center" style="font-size:.82rem;color:#6b7280;line-height:1.5;">
+        <div><strong>Designed By Rounak Rajbhandari</strong></div>
+        <div>&copy; {{ date('Y') }} StockWise&trade;. All Rights Reserved. <span style="font-size:.75rem;">&#174; Copyright Protected</span></div>
+      </div>
+    </footer>
+
     <!-- Logout Confirmation Modal -->
     <div class="modal fade" id="logoutConfirmModal" tabindex="-1" aria-labelledby="logoutConfirmModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">

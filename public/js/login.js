@@ -18,6 +18,14 @@ $(function () {
   }
 
   const params = new URLSearchParams(window.location.search);
+  if (params.get('auth') === 'expired') {
+    toast('Your session has expired. Please login again.', 'warning');
+    params.delete('auth');
+    const query = params.toString();
+    const cleanPath = `${window.location.pathname}${query ? `?${query}` : ''}`;
+    window.history.replaceState({}, document.title, cleanPath);
+  }
+
   if (params.get('auth') === 'required') {
     toast('You must login to view the page.', 'warning');
     params.delete('auth');

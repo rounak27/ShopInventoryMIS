@@ -272,6 +272,21 @@ const API = {
     return localStorage.getItem('token');
   },
 
+  handleAuthError(xhr) {
+    const status = xhr?.status;
+    const message = String(xhr?.responseJSON?.message || '').toLowerCase();
+    const errorCode = String(xhr?.responseJSON?.error || '').toLowerCase();
+    const isExpired = status === 401 && (errorCode === 'token_expired' || message.includes('expired'));
+
+    if (!isExpired) {
+      return false;
+    }
+
+    localStorage.removeItem('token');
+    window.location.href = `${baseURL}/login?auth=expired`;
+    return true;
+  },
+
   get(endpoint, cb) {
     $.ajax({
       url: Config.apiBase + endpoint,
@@ -281,7 +296,10 @@ const API = {
         'Accept': 'application/json'
       },
       success: cb,
-      error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
+      error: (xhr) => {
+        if (API.handleAuthError(xhr)) return;
+        toast(xhr.responseJSON?.message || 'Server error', 'danger');
+      },
     });
   },
   post(endpoint, data) {
@@ -296,7 +314,10 @@ const API = {
         'Accept': 'application/json'
       },
         success: (res) => resolve(res),
-        error: (xhr) => reject(xhr.responseJSON || { message: 'Server error' }),
+        error: (xhr) => {
+          if (API.handleAuthError(xhr)) return;
+          reject(xhr.responseJSON || { message: 'Server error' });
+        },
         });
     });
 },
@@ -326,7 +347,10 @@ const API = {
         'Accept': 'application/json'
       },
       success: cb,
-      error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
+      error: (xhr) => {
+        if (API.handleAuthError(xhr)) return;
+        toast(xhr.responseJSON?.message || 'Server error', 'danger');
+      },
     });
   },
 
@@ -339,7 +363,10 @@ const API = {
         'Accept': 'application/json'
       },
       success: cb,
-      error: (xhr) => toast(xhr.responseJSON?.message || 'Server error', 'danger'),
+      error: (xhr) => {
+        if (API.handleAuthError(xhr)) return;
+        toast(xhr.responseJSON?.message || 'Server error', 'danger');
+      },
     });
   }
 };

@@ -14,9 +14,8 @@ class WebController extends Controller
     }
     public function post_login(Request $request)
     {
-        dd($request->all());
+        // dd($request->all());
         // Handle login logic here (e.g., validate credentials, authenticate user)
-        // For now, we'll just redirect to the dashboard
         return redirect()->route('dashboard');
     }
     public function dashboard()
