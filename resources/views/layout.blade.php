@@ -146,12 +146,14 @@
 
 <!-- App modules -->
 <script src="{{ asset('js/app.js') }}"></script>
+<script src="{{ asset('js/init.js') }}"></script>
 <script src="{{ asset('js/items.js') }}"></script>
 <script src="{{ asset('js/stock.js') }}"></script>
 <script src="{{ asset('js/purchase-history.js') }}"></script>
 
 <script>
 /* ── Init all modules ── */
+
 $(document).ready(function () {
 
   ItemMgr.init();

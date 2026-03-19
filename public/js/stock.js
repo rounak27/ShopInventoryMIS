@@ -555,11 +555,11 @@ function render() {
         }
 
         toast(res.message, 'success');
-
+        loadStock(currentPage);
         closeModal('stockInOutModal');
 
-        render();
-        HistoryMgr.render();
+        // render();
+        // HistoryMgr.render();
         refreshStats();
 
       })
@@ -639,9 +639,9 @@ function render() {
         toast(res.message || 'Stock adjusted successfully!', 'success');
 
         closeModal('adjModal');
-
-        render();
-        HistoryMgr.render();
+        loadStock(currentPage);
+        // render();
+        // HistoryMgr.render();
         refreshStats();
 
       })

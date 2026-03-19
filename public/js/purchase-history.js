@@ -166,10 +166,9 @@ const PurchaseMgr = (() => {
     closeModal('purchaseModal');
 
     // Refresh all tables
-    StockMgr.render();
-    HistoryMgr.render();
+    loadPurchases(currentPage);
     refreshStats();
-    renderRecentPurchases();
+    // renderRecentPurchases();
   }
 
   /* ── Render recent purchases in the purchase page ── */

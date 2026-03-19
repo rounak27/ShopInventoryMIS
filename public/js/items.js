@@ -308,6 +308,7 @@ const ItemMgr = (() => {
 
     closeModal('itemModal');
     render();
+    loadItems(currentPage);
     refreshStats();
   }
 
