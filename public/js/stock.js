@@ -501,7 +501,7 @@ function render() {
 
   /* ── Save Stock In/Out ── */
   /* ── Save Stock In/Out ── */
-  function saveStockInOut() {
+  async function saveStockInOut() {
 
     const qty    = parseInt($('#stockQty').val());
     const reason = $('#stockReason').val().trim();
@@ -536,37 +536,32 @@ function render() {
       note: reason
     };
 
-    API.post('/stock/adjust', payload)
-      .then(res => {
+    try {
+      const res = await API.post('/stock/adjust', payload);
 
-        if (!res.success) {
-          toast(res.message || 'Stock update failed.', 'danger');
-          return;
-        }
+      if (!res?.success) {
+        toast(res?.message || 'Stock update failed.', 'danger');
+        return;
+      }
 
-        const data = res.data;
+      const data = res.data;
 
-        /* update variant stock locally */
-        // Store.updateVariantStock(data.variant.id, data.variant.stock);
+      /* update variant stock locally */
+      // Store.updateVariantStock(data.variant.id, data.variant.stock);
 
-        /* push ledger entry to UI */
-        if (data.ledgerEntry) {
-          Store.addLedgerEntry(data.ledgerEntry);
-        }
+      /* push ledger entry to UI */
+      if (data?.ledgerEntry) {
+        Store.addLedgerEntry(data.ledgerEntry);
+      }
 
-        toast(res.message, 'success');
-        loadStock(currentPage);
-        closeModal('stockInOutModal');
-
-        // render();
-        // HistoryMgr.render();
-        refreshStats();
-
-      })
-      .catch(err => {
-        console.error(err);
-        toast('Server error occurred.', 'danger');
-      });
+      closeModal('stockInOutModal');
+      loadStock(currentPage);
+      refreshStats();
+      toast(res.message || 'Stock updated successfully.', 'success');
+    } catch (err) {
+      console.error(err);
+      toast(err?.message || 'Server error occurred.', 'danger');
+    }
   }
 
   /* ── Open Adjust modal ── */
@@ -587,7 +582,7 @@ function render() {
   }
 
   /* ── Save Adjustment ── */
-  function saveAdjustment() {
+  async function saveAdjustment() {
 
     const actual = parseInt($('#adjActualQty').val());
     const reason = $('#adjReason').val().trim();
@@ -618,37 +613,32 @@ function render() {
       note: reason
     };
 
-    API.post('/stock/adjust', payload)
-      .then(res => {
+    try {
+      const res = await API.post('/stock/adjust', payload);
 
-        if (!res.success) {
-          toast(res.message || 'Stock adjustment failed.', 'danger');
-          return;
-        }
+      if (!res?.success) {
+        toast(res?.message || 'Stock adjustment failed.', 'danger');
+        return;
+      }
 
-        const data = res.data;
+      const data = res.data;
 
-        /* update variant stock locally */
-        // Store.updateVariantStock(data.variant.id, data.variant.stock);
+      /* update variant stock locally */
+      // Store.updateVariantStock(data.variant.id, data.variant.stock);
 
-        /* push ledger entry */
-        if (data.ledgerEntry) {
-          Store.addLedgerEntry(data.ledgerEntry);
-        }
+      /* push ledger entry */
+      if (data?.ledgerEntry) {
+        Store.addLedgerEntry(data.ledgerEntry);
+      }
 
-        toast(res.message || 'Stock adjusted successfully!', 'success');
-
-        closeModal('adjModal');
-        loadStock(currentPage);
-        // render();
-        // HistoryMgr.render();
-        refreshStats();
-
-      })
-      .catch(err => {
-        console.error(err);
-        toast('Server error occurred.', 'danger');
-      });
+      closeModal('adjModal');
+      loadStock(currentPage);
+      refreshStats();
+      toast(res.message || 'Stock adjusted successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      toast(err?.message || 'Server error occurred.', 'danger');
+    }
 
   }
 

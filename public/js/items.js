@@ -268,7 +268,7 @@ const ItemMgr = (() => {
   }
 
   /* ── Save item (add or edit) ── */
-  function saveItem() {
+  async function saveItem() {
     const $form = $('#itemForm');
     if (!validateForm($form)) return;
 
@@ -295,21 +295,35 @@ const ItemMgr = (() => {
 
     if (editingId) {
       // PUT /api/v1/inventory/items/{id}
-      API.put(`/items/${editingId}`, payload);
-      Object.assign(Store.getItem(editingId), payload);
-      toast('Item updated successfully!', 'success');
-    } else {
-      // POST /api/v1/inventory/items
-      API.post('/items', payload);
-      payload.id = Store._itemNextId++;
-      Store.items.push(payload);
-      toast('Item added successfully!', 'success');
+      API.put(`/items/${editingId}`, payload, function (res) {
+        if (!res?.success) {
+          toast(res?.message || 'Failed to update item.', 'danger');
+          return;
+        }
+
+        closeModal('itemModal');
+        loadItems(currentPage);
+        refreshStats();
+        toast(res.message || 'Item updated successfully!', 'success');
+      });
+      return;
     }
 
-    closeModal('itemModal');
-    render();
-    loadItems(currentPage);
-    refreshStats();
+    // POST /api/v1/inventory/items
+    try {
+      const res = await API.post('/items', payload);
+      if (!res?.success) {
+        toast(res?.message || 'Failed to add item.', 'danger');
+        return;
+      }
+
+      closeModal('itemModal');
+      loadItems(currentPage);
+      refreshStats();
+      toast(res.message || 'Item added successfully!', 'success');
+    } catch (err) {
+      toast(err?.message || 'Server error', 'danger');
+    }
   }
 
   /* ── Delete item ── */

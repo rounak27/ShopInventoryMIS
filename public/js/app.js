@@ -288,8 +288,11 @@ const API = {
   },
 
   get(endpoint, cb) {
+    const sep = endpoint.includes('?') ? '&' : '?';
+    const requestUrl = Config.apiBase + endpoint + `${sep}_=${Date.now()}`;
+
     $.ajax({
-      url: Config.apiBase + endpoint,
+      url: requestUrl,
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${API.getToken()}`,

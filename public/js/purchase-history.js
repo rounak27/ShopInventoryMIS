@@ -119,7 +119,7 @@ const PurchaseMgr = (() => {
   }
 
   /* ── Save purchase ── */
-  function savePurchase() {
+  async function savePurchase() {
     const supplier = $('#purchaseSupplier').val().trim();
     const date     = $('#purchaseDate').val() || today();
     const notes    = $('#purchaseNotes').val().trim();
@@ -143,32 +143,20 @@ const PurchaseMgr = (() => {
 
     const ref = `PO-${Date.now().toString().slice(-6)}`;
 
-    // Process each item
-    items.forEach(row => {
-      const entry = {
-        date,
-        itemId:      row.itemId,
-        variantKey:  row.variantKey,
-        type:        'Purchase',
-        qty:         +row.qty,
-        ref,
-        user:        'Admin',
-        note:        `Supplier: ${supplier}${notes ? ' | ' + notes : ''}`,
-      };
-      Store.addLedgerEntry(entry);
-    });
-    console.log(supplier,date,notes,ref,items);
-    
-    // POST to Laravel API
-    API.post('/purchases', { supplier, date, notes, ref, items });
+    try {
+      const res = await API.post('/purchases', { supplier, date, notes, ref, items });
+      if (!res?.success) {
+        toast(res?.message || 'Purchase failed.', 'danger');
+        return;
+      }
 
-    toast(`Purchase ${ref} saved! Stock updated for ${items.length} variant(s).`, 'success');
-    closeModal('purchaseModal');
-
-    // Refresh all tables
-    loadPurchases(currentPage);
-    refreshStats();
-    // renderRecentPurchases();
+      closeModal('purchaseModal');
+      loadPurchases(currentPage);
+      refreshStats();
+      toast(res.message || `Purchase ${ref} saved!`, 'success');
+    } catch (err) {
+      toast(err?.message || 'Server error occurred.', 'danger');
+    }
   }
 
   /* ── Render recent purchases in the purchase page ── */
@@ -399,15 +387,20 @@ const HistoryMgr = (() => {
   const meta = Store.ledgerMeta;
 
   if (meta) {
+    const page  = parseInt(meta.page ?? meta.currentPage ?? 1, 10) || 1;
+    const pages = parseInt(meta.pages ?? meta.lastPage ?? 1, 10) || 1;
 
     $('#historyPaginationInfo').text(
-      `Page ${meta.currentPage} of ${meta.lastPage} (${meta.total} records)`
+      `Page ${page} of ${pages} (${meta.total} records)`
     );
 
-    renderPaginationBtns($('#historyPaginationBtns'), meta, (p) => {
+    renderPaginationBtns($('#historyPaginationBtns'), { page, pages }, (p) => {
       load(p);
     });
 
+  } else {
+    $('#historyPaginationInfo').text('');
+    $('#historyPaginationBtns').empty();
   }
 
 }
