@@ -698,6 +698,22 @@ input, select, textarea { font-family: var(--font); }
   .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
   .pit-head, .pit-row { grid-template-columns: 1fr 1fr 60px 60px 30px; }
   .pit-row .pit-product-col { grid-column: 1 / -1; }
+  .variant-list-head { display: none !important; }
+  #itemVariantList .variant-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 10px;
+  }
+  #itemVariantList .variant-row > div:nth-child(3) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+  }
+  #itemVariantList .variant-row .vr-remove {
+    width: 32px;
+    height: 32px;
+  }
   .page { padding: 16px 12px; }
   .modal-head h5 { font-size: .85rem; }
 }

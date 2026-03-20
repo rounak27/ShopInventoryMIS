@@ -7,6 +7,11 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"/>
+<link rel="manifest" href="{{ asset('manifest.json') }}">
+<meta name="theme-color" content="#0d6efd">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="{{ asset('stocklogosmall.png') }}">
 <style>
 body{
   background:linear-gradient(135deg,#0f172a,#1e293b);
@@ -30,8 +35,16 @@ body{
   margin-bottom:30px;
 }
 
+.brand-logo{
+  width:200px;
+  height:auto;
+  display:block;
+  margin:0 auto 10px;
+}
+
 .brand h3{
   font-weight:700;
+  display:none;
   margin:10px 0 0 0;
 }
 
@@ -62,7 +75,7 @@ body{
 <div class="login-card">
 
   <div class="brand">
-    <i class="bi bi-box-seam" style="font-size:2.2rem"></i>
+    <img src="{{ asset('stocklogosmall.png') }}" alt="Stock Logo" class="brand-logo">
     <h3>Inventory System</h3>
     <p>Sign in to continue</p>
   </div>
@@ -96,6 +109,15 @@ body{
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register("{{ asset('sw.js') }}").catch(function (err) {
+      console.error('Service worker registration failed:', err);
+    });
+  });
+}
+</script>
 <script src="{{ asset('js/apicall.js') }}"></script>
 <script src="{{ asset('js/login.js') }}"></script>
 

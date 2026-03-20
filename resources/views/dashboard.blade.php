@@ -253,9 +253,9 @@
           <div class="tbar-filter">
             <select id="stockFilterStatus" class="form-select">
               <option value="">All Status</option>
-              <option value="in">In Stock</option>
-              <option value="low">Low Stock</option>
-              <option value="out">Out of Stock</option>
+              <option value="in_stock">In Stock</option>
+              <option value="low_stock">Low Stock</option>
+              <option value="out_of_stock">Out of Stock</option>
             </select>
           </div>
         </div>
@@ -461,7 +461,7 @@
               <i class="bi bi-plus"></i> Add Variant
             </button>
           </label>
-          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:4px;padding:4px 0;margin-bottom:4px;">
+          <div class="variant-list-head" style="display:grid;grid-template-columns:1fr 1fr auto;gap:4px;padding:4px 0;margin-bottom:4px;">
             <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);padding-left:12px;">Size</span>
             <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);">Color</span>
             <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);">Opening Stock</span>

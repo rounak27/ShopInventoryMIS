@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>StockWise — Inventory Management</title>
   <meta name="description" content="Retail Inventory Management System — Clothing Store"/>
+  <link rel="manifest" href="{{ asset('manifest.json') }}"/>
+  <meta name="theme-color" content="#0d6efd"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <link rel="apple-touch-icon" href="{{ asset('stocklogosmall.png') }}"/>
   <!-- Bootstrap 5 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"/>
   <!-- Bootstrap Icons -->
@@ -150,6 +155,15 @@
 <script src="{{ asset('js/items.js') }}"></script>
 <script src="{{ asset('js/stock.js') }}"></script>
 <script src="{{ asset('js/purchase-history.js') }}"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register("{{ asset('sw.js') }}").catch(function (err) {
+      console.error('Service worker registration failed:', err);
+    });
+  });
+}
+</script>
 
 <script>
 /* ── Init all modules ── */
