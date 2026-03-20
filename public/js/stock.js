@@ -556,6 +556,7 @@ function render() {
 
       closeModal('stockInOutModal');
       loadStock(currentPage);
+      HistoryMgr.init();
       refreshStats();
       toast(res.message || 'Stock updated successfully.', 'success');
     } catch (err) {
@@ -633,6 +634,7 @@ function render() {
 
       closeModal('adjModal');
       loadStock(currentPage);
+      HistoryMgr.init();
       refreshStats();
       toast(res.message || 'Stock adjusted successfully!', 'success');
     } catch (err) {

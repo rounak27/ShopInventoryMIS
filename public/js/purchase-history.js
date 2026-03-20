@@ -152,6 +152,7 @@ const PurchaseMgr = (() => {
 
       closeModal('purchaseModal');
       loadPurchases(currentPage);
+      HistoryMgr.init(); // Refresh ledger history
       refreshStats();
       toast(res.message || `Purchase ${ref} saved!`, 'success');
     } catch (err) {
