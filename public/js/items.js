@@ -303,6 +303,8 @@ const ItemMgr = (() => {
 
         closeModal('itemModal');
         loadItems(currentPage);
+        StockMgr.loadStock(); // Refresh stock data for variants
+        HistoryMgr.init(); // Refresh ledger history
         refreshStats();
         toast(res.message || 'Item updated successfully!', 'success');
       });

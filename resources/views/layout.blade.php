@@ -100,6 +100,9 @@
         <input type="text" placeholder="Quick search items, SKU…" id="globalSearch"/>
       </div>
       <div class="topbar-right">
+        <button class="topbar-btn" id="pwaInstallBtn" onclick="triggerPwaInstall()" title="Install App" style="display:none;">
+          <i class="bi bi-download"></i>
+        </button>
         <button class="topbar-btn" title="Notifications">
           <i class="bi bi-bell"></i>
           <span class="badge-dot"></span>
@@ -156,11 +159,54 @@
 <script src="{{ asset('js/stock.js') }}"></script>
 <script src="{{ asset('js/purchase-history.js') }}"></script>
 <script>
+// ─── PWA Service Worker Registration ───
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register("{{ asset('sw.js') }}").catch(function (err) {
-      console.error('Service worker registration failed:', err);
+    navigator.serviceWorker.register("{{ asset('sw.js') }}").then(function(reg) {
+      console.log('✅ Service Worker registered:', reg);
+    }).catch(function (err) {
+      console.error('❌ Service worker registration failed:', err);
     });
+  });
+}
+
+// ─── PWA Install Prompt Handler ───
+let deferredPrompt = null;
+const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  console.log('🔔 Install prompt event FIRED - Saving for later use');
+  e.preventDefault(); // Prevent the mini-infobar
+  deferredPrompt = e;
+  // Show install button when prompt is ready
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) {
+    btn.style.display = 'flex';
+    console.log('✅ Install button is now visible');
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  console.log('✨ App installed successfully!');
+  deferredPrompt = null;
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'none';
+});
+
+function triggerPwaInstall() {
+  console.log('📥 triggerPwaInstall called - deferredPrompt:', !!deferredPrompt);
+  if (!deferredPrompt) {
+    alert('📱 Install Instructions:\n\nAndroid: Tap ⋮ menu > "Install app"\niPhone: Tap Share → "Add to Home Screen"');
+    return;
+  }
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then((choiceResult) => {
+    if (choiceResult.outcome === 'accepted') {
+      console.log('✅ User accepted install prompt');
+    } else {
+      console.log('❌ User dismissed install prompt');
+    }
+    deferredPrompt = null;
   });
 }
 </script>

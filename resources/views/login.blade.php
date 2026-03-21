@@ -9,8 +9,6 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"/>
 <link rel="manifest" href="{{ asset('manifest.json') }}">
 <meta name="theme-color" content="#0d6efd">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="{{ asset('stocklogosmall.png') }}">
 <style>
 body{
@@ -72,6 +70,13 @@ body{
 </head>
 <body>
 <div id="baseUrl" class="card d-none" > {{ url('/') }}</div>
+
+<!-- PWA Install Button -->
+<button id="pwaInstallBtn" onclick="triggerPwaInstall()" 
+  style="position:fixed;top:12px;right:12px;display:none;padding:8px 14px;background:#0d6efd;color:white;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:9999;transition:all .3s;">
+  <i class="bi bi-download"></i> Install App
+</button>
+
 <div class="login-card">
 
   <div class="brand">
@@ -110,11 +115,51 @@ body{
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 <script>
+// ─── PWA Service Worker Registration ───
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register("{{ asset('sw.js') }}").catch(function (err) {
-      console.error('Service worker registration failed:', err);
+  navigator.serviceWorker.register("{{ asset('sw.js') }}")
+    .then(() => console.log('✅ Service Worker Registered'))
+    .catch(err => console.error('❌ SW failed:', err));
+}
+
+// ─── PWA Install Prompt Handler ───
+let deferredPrompt = null;
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  console.log('🔔 Install prompt event FIRED - Save for later');
+  e.preventDefault(); // Prevent the mini-infobar from appearing
+  deferredPrompt = e;
+});
+
+window.addEventListener('appinstalled', () => {
+  console.log('✨ App installed successfully');
+  deferredPrompt = null;
+});
+
+function triggerPwaInstall() {
+  console.log('📥 triggerPwaInstall called, deferredPrompt:', !!deferredPrompt);
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        console.log('✅ User accepted the install prompt');
+      } else {
+        console.log('❌ User dismissed the install prompt');
+      }
+      deferredPrompt = null;
     });
+  } else {
+    alert('📱 Install Instructions:\n\nAndroid: Tap ⋮ menu > "Install app"\niPhone: Tap Share → "Add to Home Screen"');
+  }
+}
+
+// Auto-show install button on mobile when prompt is ready
+if (isMobile) {
+  window.addEventListener('beforeinstallprompt', () => {
+    // Check if install button exists and make it visible
+    const btn = document.getElementById('pwaInstallBtn');
+    if (btn) btn.style.display = 'block';
   });
 }
 </script>

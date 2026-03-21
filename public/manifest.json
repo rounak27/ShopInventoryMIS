@@ -1,21 +1,26 @@
 {
-  "name": "Inventory System",
-  "short_name": "Inventory",
+  "name": "StockWise Inventory System",
+  "short_name": "StockWise",
+  "description": "Retail Inventory Management System - Clothing Store",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#0d6efd",
-  "orientation": "portrait",
+  "categories": ["productivity"],
   "icons": [
     {
       "src": "/stocklogosmall.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/stocklogo.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

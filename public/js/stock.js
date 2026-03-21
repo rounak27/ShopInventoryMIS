@@ -690,5 +690,5 @@ function render() {
     });
   }
 
-  return { init, render, populateFilters, filterByItem };
+  return { init, render, populateFilters, filterByItem,loadStock };
 })();
