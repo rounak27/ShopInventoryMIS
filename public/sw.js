@@ -47,11 +47,3 @@ self.addEventListener("fetch", event => {
     })
   );
 });
-
-self.addEventListener('activate', event => {
-    console.log('Service Worker activating.');
-});
-
-self.addEventListener('fetch', function(event) {
-    // Optional: cache logic for offline support
-});

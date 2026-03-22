@@ -73,7 +73,7 @@ body{
 
 <!-- PWA Install Button -->
 <button id="pwaInstallBtn" onclick="triggerPwaInstall()" 
-  style="position:fixed;top:12px;right:12px;display:none;padding:8px 14px;background:#0d6efd;color:white;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:9999;transition:all .3s;">
+  style="position:fixed;top:12px;right:12px;display:block;padding:8px 14px;background:#0d6efd;color:white;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:9999;transition:all .3s;">
   <i class="bi bi-download"></i> Install App
 </button>
 
@@ -81,7 +81,7 @@ body{
 
   <div class="brand">
     <img src="{{ asset('stocklogosmall.png') }}" alt="Stock Logo" class="brand-logo">
-    <h3>Inventory System</h3>
+    <h3>Inventory System</h3> 
     <p>Sign in to continue</p>
   </div>
 
@@ -124,43 +124,51 @@ if ('serviceWorker' in navigator) {
 
 // ─── PWA Install Prompt Handler ───
 let deferredPrompt = null;
-const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const pwaInstallBtn = document.getElementById('pwaInstallBtn');
+const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const isSecure = window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+if (pwaInstallBtn && !isStandalone) {
+  pwaInstallBtn.style.display = 'block';
+}
 
 window.addEventListener('beforeinstallprompt', (e) => {
-  console.log('🔔 Install prompt event FIRED - Save for later');
-  e.preventDefault(); // Prevent the mini-infobar from appearing
+  e.preventDefault();
   deferredPrompt = e;
+  console.log('Install prompt is ready');
 });
 
 window.addEventListener('appinstalled', () => {
-  console.log('✨ App installed successfully');
+  console.log('App installed successfully');
   deferredPrompt = null;
 });
 
 function triggerPwaInstall() {
-  console.log('📥 triggerPwaInstall called, deferredPrompt:', !!deferredPrompt);
   if (deferredPrompt) {
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then((choiceResult) => {
-      if (choiceResult.outcome === 'accepted') {
-        console.log('✅ User accepted the install prompt');
-      } else {
-        console.log('❌ User dismissed the install prompt');
-      }
+      console.log('Install choice:', choiceResult.outcome);
       deferredPrompt = null;
     });
   } else {
-    alert('📱 Install Instructions:\n\nAndroid: Tap ⋮ menu > "Install app"\niPhone: Tap Share → "Add to Home Screen"');
-  }
-}
+    if (isStandalone) {
+      alert('App is already installed on this device.');
+      return;
+    }
 
-// Auto-show install button on mobile when prompt is ready
-if (isMobile) {
-  window.addEventListener('beforeinstallprompt', () => {
-    // Check if install button exists and make it visible
-    const btn = document.getElementById('pwaInstallBtn');
-    if (btn) btn.style.display = 'block';
-  });
+    if (!isSecure) {
+      alert('Install prompt requires HTTPS (or localhost). Open this site over HTTPS to enable install prompt.');
+      return;
+    }
+
+    if (isIos) {
+      alert('On iPhone/iPad, use Safari Share menu > Add to Home Screen.');
+      return;
+    }
+
+    alert('Install prompt is not ready yet. Reload once and interact with the page, or use browser menu > Install app.');
+  }
 }
 </script>
 <script src="{{ asset('js/apicall.js') }}"></script>

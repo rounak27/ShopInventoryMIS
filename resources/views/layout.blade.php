@@ -172,16 +172,22 @@ if ('serviceWorker' in navigator) {
 
 // ─── PWA Install Prompt Handler ───
 let deferredPrompt = null;
-const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const installBtn = document.getElementById('pwaInstallBtn');
+const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const isSecure = window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+if (installBtn && !isStandalone) {
+  installBtn.style.display = 'flex';
+}
 
 window.addEventListener('beforeinstallprompt', (e) => {
   console.log('🔔 Install prompt event FIRED - Saving for later use');
   e.preventDefault(); // Prevent the mini-infobar
   deferredPrompt = e;
   // Show install button when prompt is ready
-  const btn = document.getElementById('pwaInstallBtn');
-  if (btn) {
-    btn.style.display = 'flex';
+  if (installBtn) {
+    installBtn.style.display = 'flex';
     console.log('✅ Install button is now visible');
   }
 });
@@ -189,25 +195,40 @@ window.addEventListener('beforeinstallprompt', (e) => {
 window.addEventListener('appinstalled', () => {
   console.log('✨ App installed successfully!');
   deferredPrompt = null;
-  const btn = document.getElementById('pwaInstallBtn');
-  if (btn) btn.style.display = 'none';
+  if (installBtn) installBtn.style.display = 'none';
 });
 
 function triggerPwaInstall() {
   console.log('📥 triggerPwaInstall called - deferredPrompt:', !!deferredPrompt);
-  if (!deferredPrompt) {
-    alert('📱 Install Instructions:\n\nAndroid: Tap ⋮ menu > "Install app"\niPhone: Tap Share → "Add to Home Screen"');
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        console.log('✅ User accepted install prompt');
+      } else {
+        console.log('❌ User dismissed install prompt');
+      }
+      deferredPrompt = null;
+    });
     return;
   }
-  deferredPrompt.prompt();
-  deferredPrompt.userChoice.then((choiceResult) => {
-    if (choiceResult.outcome === 'accepted') {
-      console.log('✅ User accepted install prompt');
-    } else {
-      console.log('❌ User dismissed install prompt');
-    }
-    deferredPrompt = null;
-  });
+
+  if (isStandalone) {
+    alert('App is already installed on this device.');
+    return;
+  }
+
+  if (!isSecure) {
+    alert('Install prompt requires HTTPS (or localhost). Open this site over HTTPS to enable install prompt.');
+    return;
+  }
+
+  if (isIos) {
+    alert('On iPhone/iPad, use Safari Share menu > Add to Home Screen.');
+    return;
+  }
+
+  alert('Install prompt is not ready yet. Reload once and interact with the page, or use browser menu > Install app.');
 }
 </script>
 
