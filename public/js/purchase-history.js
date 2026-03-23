@@ -78,12 +78,30 @@ const PurchaseMgr = (() => {
     const id = rowCounter;
     const $row = $(`
       <div class="pit-row" data-row="${id}">
-        <select class="form-control form-select pr-item" style="font-size:.8rem;"></select>
-        <select class="form-control form-select pr-variant" style="font-size:.8rem;"><option value="">Variant</option></select>
-        <input type="number" class="form-control pr-qty" placeholder="Qty" min="1" data-type="number" style="font-size:.8rem;"/>
-        <input type="number" class="form-control pr-cost" placeholder="Cost" min="0" data-type="number" style="font-size:.8rem;"/>
-        <span class="pr-total pit-total">—</span>
-        <button class="btn btn-ghost danger btn-icon pr-remove-btn" data-row="${id}" title="Remove"><i class="bi bi-x"></i></button>
+        <div class="pit-cell pit-field-item">
+          <span class="pit-mobile-label">Product</span>
+          <select class="form-control form-select pr-item" style="font-size:.8rem;"></select>
+        </div>
+        <div class="pit-cell pit-field-variant">
+          <span class="pit-mobile-label">Variant</span>
+          <select class="form-control form-select pr-variant" style="font-size:.8rem;"><option value="">Variant</option></select>
+        </div>
+        <div class="pit-cell pit-field-qty">
+          <span class="pit-mobile-label">Qty</span>
+          <input type="number" class="form-control pr-qty" placeholder="Qty" min="1" data-type="number" style="font-size:.8rem;"/>
+        </div>
+        <div class="pit-cell pit-field-cost">
+          <span class="pit-mobile-label">Cost/Unit</span>
+          <input type="number" class="form-control pr-cost" placeholder="Cost" min="0" data-type="number" style="font-size:.8rem;"/>
+        </div>
+        <div class="pit-cell pit-field-total">
+          <span class="pit-mobile-label">Total</span>
+          <span class="pr-total pit-total">—</span>
+        </div>
+        <div class="pit-cell pit-field-remove">
+          <span class="pit-mobile-label">Action</span>
+          <button class="btn btn-ghost danger btn-icon pr-remove-btn" data-row="${id}" title="Remove"><i class="bi bi-x"></i></button>
+        </div>
       </div>`);
     populateItemSelect($row.find('.pr-item'));
     $('#purchaseItemsContainer').append($row);
