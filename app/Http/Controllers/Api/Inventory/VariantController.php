@@ -48,6 +48,7 @@ class VariantController extends Controller
             'categoryId'   => $v->item?->category_id ?? null,
             'categoryName' => $v->item?->category?->name ?? '',
             'status'       => $status,
+            'barCode'       => $v->item?->barcode ?? '',
         ];
     }
 
@@ -66,6 +67,7 @@ class VariantController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        // dd($request->all());
         $query = ItemVariant::with(['item.category'])
             ->when($request->item_id, fn ($q) =>
                 $q->where('item_id', $request->item_id)

@@ -69,6 +69,9 @@
       <a class="nav-link" data-page="purchase">
         <i class="bi bi-cart-plus-fill"></i> Purchase / Stock In
       </a>
+      <a class="nav-link" data-page="sales">
+        <i class="bi bi-cash-coin"></i> Sales / POS
+      </a>
 
       <div class="nav-group-label">Reports</div>
       <a class="nav-link" data-page="history">
@@ -158,6 +161,7 @@
 <script src="{{ asset('js/items.js') }}"></script>
 <script src="{{ asset('js/stock.js') }}"></script>
 <script src="{{ asset('js/purchase-history.js') }}"></script>
+<script src="{{ asset('js/sales.js') }}"></script>
 <script>
 // ─── PWA Service Worker Registration ───
 if ('serviceWorker' in navigator) {

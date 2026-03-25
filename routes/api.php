@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Inventory\CategoryController;
 use App\Http\Controllers\Api\Inventory\ItemController;
 use App\Http\Controllers\Api\Inventory\LedgerController;
 use App\Http\Controllers\Api\Inventory\PurchaseController;
+use App\Http\Controllers\Api\Inventory\SalesController;
 use App\Http\Controllers\Api\Inventory\StockController;
 use App\Http\Controllers\Api\Inventory\SupplierController;
 use App\Http\Controllers\Api\Inventory\VariantController;
@@ -34,6 +35,13 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('purchases', PurchaseController::class)->only([
                 'index','store'
             ]);
+
+            // Sales (POS) endpoints
+            Route::post('sales', [SalesController::class, 'store']);
+            Route::get('sales', [SalesController::class, 'index']);
+            Route::get('sales/{id}', [SalesController::class, 'show']);
+            Route::post('sales/{id}/return', [SalesController::class, 'return']);
+            Route::post('sales/{id}/print', [SalesController::class, 'markPrinted']);
 
         });
     });

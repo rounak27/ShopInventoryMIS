@@ -12,19 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('sale_items', function (Blueprint $table) {
-
             $table->id();
 
             $table->foreignId('sale_id')->constrained()->cascadeOnDelete();
-
             $table->foreignId('variant_id')->constrained('item_variants');
 
-            $table->integer('quantity');
+            $table->unsignedInteger('quantity');
+            $table->decimal('price_per_unit', 10, 2);
+            $table->decimal('cost_price', 10, 2);
+            $table->decimal('profit', 10, 2)->nullable();
+            $table->decimal('discount_amount', 10, 2)->default(0);
+            $table->decimal('total_price', 12, 2);
 
-            $table->decimal('price_per_unit',10,2);
-
-            $table->decimal('total_price',12,2);
-            $table->index(['sale_id','variant_id']);
+            $table->index(['sale_id', 'variant_id']);
         });
     }
 

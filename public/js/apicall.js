@@ -31,7 +31,10 @@ const API = {
         method: 'POST',
         data: JSON.stringify(data),
         contentType: 'application/json',
-        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+        headers: { 
+          'Authorization': 'Bearer ' + API.getToken(),
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') 
+        },
         success: (res) => resolve(res),
         error: (xhr) => reject(xhr.responseJSON || { message: 'Server error' }),
         });
