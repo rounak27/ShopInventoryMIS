@@ -61,6 +61,7 @@ class ItemController extends Controller
                 'id'    => $v->id,
                 'size'  => $v->size,
                 'color' => $v->color,
+                'barcode' => $v->barcode,
                 'stock' => (int) $v->current_stock,
             ])->values()->toArray(),
         ];

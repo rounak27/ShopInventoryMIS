@@ -48,7 +48,8 @@ class VariantController extends Controller
             'categoryId'   => $v->item?->category_id ?? null,
             'categoryName' => $v->item?->category?->name ?? '',
             'status'       => $status,
-            'barCode'       => $v->item?->barcode ?? '',
+            'barcode'      => $v->barcode ?? '',
+            'barCode'      => $v->barcode ?? '',
         ];
     }
 
@@ -78,10 +79,11 @@ class VariantController extends Controller
                 )
             )
             ->when($request->search, fn ($q) =>
-                $q->whereHas('item', fn ($iq) =>
-                    $iq->where('name', 'like', "%{$request->search}%")
-                       ->orWhere('sku',  'like', "%{$request->search}%")
-                )
+                $q->where('barcode', 'like', "%{$request->search}%")
+                  ->orWhereHas('item', fn ($iq) =>
+                      $iq->where('name', 'like', "%{$request->search}%")
+                         ->orWhere('sku',  'like', "%{$request->search}%")
+                  )
             )
             ->when($request->status === 'in_stock',    fn ($q) => $q->where('current_stock', '>', 0)->whereColumn('current_stock', '>', 'reorder_level'))
             ->when($request->status === 'low_stock',   fn ($q) => $q->where('current_stock', '>', 0)->whereColumn('current_stock', '<=', 'reorder_level'))

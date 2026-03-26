@@ -226,44 +226,56 @@ const SalesMgr = {
   },
 
   async scanBarcode(barcode) {
-    // Look up variant by barcode
-    const variant = this.variantIndex[barcode];
-
-    if (!variant) {
-      toast(`Barcode not found: ${barcode}`, 'warning');
-      return;
-    }
-
-    // Check stock
-    if (variant.stock <= 0) {
-      toast(`Out of stock: ${variant.itemName || 'Item'}`, 'danger');
-      return;
-    }
-
-    // Check if already in cart
-    const existingIdx = this.cart.findIndex((item) => item.variant.id === variant.id);
-
-    if (existingIdx >= 0) {
-      // Increase quantity
-      const item = this.cart[existingIdx];
-      if (item.quantity < variant.stock) {
-        item.quantity++;
-        toast(`Qty ↑ ${variant.size}/${variant.color}`, 'info');
-      } else {
-        toast(`Max stock reached for this variant`, 'warning');
-      }
-    } else {
-      // Add to cart
-      this.cart.push({
-        variant,
-        quantity: 1,
-        price: variant.sellingPrice,
+    // Query database for variant by barcode
+    try {
+      const variants = await new Promise((resolve, reject) => {
+        API.get(`/variants?search=${encodeURIComponent(barcode)}&per_page=100`, (data) => {
+          resolve(data.data || []);
+        });
       });
-      toast(`Added: ${variant.itemName} (${variant.size}/${variant.color})`, 'success');
-    }
 
-    this.renderCart();
-    this.updateSummary();
+      // Find exact match by barcode
+      const variant = variants.find(v => v.barcode === barcode);
+
+      if (!variant) {
+        toast(`Barcode not found: ${barcode}`, 'warning');
+        return;
+      }
+
+      // Check stock
+      if (variant.stock <= 0) {
+        toast(`Out of stock: ${variant.itemName || 'Item'}`, 'danger');
+        return;
+      }
+
+      // Check if already in cart
+      const existingIdx = this.cart.findIndex((item) => item.variant.id === variant.id);
+
+      if (existingIdx >= 0) {
+        // Increase quantity
+        const item = this.cart[existingIdx];
+        if (item.quantity < variant.stock) {
+          item.quantity++;
+          toast(`Qty ↑ ${variant.size}/${variant.color}`, 'info');
+        } else {
+          toast(`Max stock reached for this variant`, 'warning');
+        }
+      } else {
+        // Add to cart
+        this.cart.push({
+          variant,
+          quantity: 1,
+          price: variant.sellingPrice,
+        });
+        toast(`Added: ${variant.itemName} (${variant.size}/${variant.color})`, 'success');
+      }
+
+      this.renderCart();
+      this.updateSummary();
+    } catch (e) {
+      toast('Barcode lookup failed', 'danger');
+      console.error('Scan error:', e);
+    }
   },
 
   removeFromCart(idx) {
