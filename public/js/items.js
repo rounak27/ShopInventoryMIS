@@ -181,6 +181,10 @@ const ItemMgr = (() => {
               <i class="bi bi-pencil"></i>
             </button>
 
+            <button class="btn btn-ghost btn-icon item-barcode-btn" data-id="${item.id}" title="Print Barcode Label">
+              <i class="bi bi-upc-scan"></i>
+            </button>
+
             <button class="btn btn-ghost success btn-icon item-stock-btn" data-id="${item.id}">
               <i class="bi bi-boxes"></i>
             </button>
@@ -338,6 +342,123 @@ const ItemMgr = (() => {
     refreshStats();
   }
 
+  function printBarcodeLabel(itemId) {
+    const item = Store.items.find(i => i.id === itemId);
+    if (!item) {
+      toast('Item not found for barcode print.', 'warning');
+      return;
+    }
+
+    const variant = (item.variants || []).find(v => v.barcode) || (item.variants || [])[0] || null;
+    const variantText = variant
+      ? `${variant.size || ''}${variant.color ? ` / ${variant.color}` : ''}`.trim() || 'Variant'
+      : 'Variant';
+
+    const barcodeValue = String((variant && variant.barcode) || item.sku || `ITEM-${item.id}`);
+
+    let barcodeSvg = '';
+    if (typeof JsBarcode !== 'undefined') {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      JsBarcode(svg, barcodeValue, {
+        format: 'CODE128',
+        displayValue: false,
+        width: 0.85,
+        height: 16,
+        margin: 0
+      });
+      barcodeSvg = svg.outerHTML;
+    }
+
+    const printWin = window.open('', '_blank', 'width=320,height=200');
+    if (!printWin) {
+      toast('Please allow popups to print barcode.', 'warning');
+      return;
+    }
+
+    printWin.document.write(`
+      <!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Barcode Label</title>
+        <style>
+          @page {
+            size: 2cm 1cm;
+            margin: 0;
+          }
+          html, body {
+            margin: 0;
+            padding: 0;
+            width: 2cm;
+            height: 1cm;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+          }
+          .label {
+            width: 2cm;
+            height: 1cm;
+            box-sizing: border-box;
+            padding: 0.3mm 0.4mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 0;
+          }
+          .item {
+            font-size: 5px;
+            line-height: 1;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .variant {
+            font-size: 4px;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .barcode {
+            width: 100%;
+            height: 4mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .barcode svg {
+            width: 100%;
+            height: 100%;
+          }
+          .code {
+            font-size: 3.7px;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="label">
+          <div class="item">${esc(item.name || '')}</div>
+          <div class="variant">${esc(variantText)}</div>
+          <div class="barcode">${barcodeSvg || `<span style="font-size:4px;">${esc(barcodeValue)}</span>`}</div>
+          <div class="code">${esc(barcodeValue)}</div>
+        </div>
+      </body>
+      </html>
+    `);
+
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      printWin.print();
+      printWin.close();
+    }, 200);
+  }
+
   /* ── Init ── */
   function init() {
     loadCategories();
@@ -352,6 +473,9 @@ const ItemMgr = (() => {
 
     // Delete btn
     $(document).on('click', '.item-del-btn', function () { deleteItem(parseInt($(this).data('id'))); });
+
+    // Print barcode label button
+    $(document).on('click', '.item-barcode-btn', function () { printBarcodeLabel(parseInt($(this).data('id'))); });
 
     // Stock operations shortcut → go to stock page and filter by item
     $(document).on('click', '.item-stock-btn', function () {

@@ -451,5 +451,5 @@ const HistoryMgr = (() => {
 
 }
 
-  return { init, render };
+  return { init, render, load };
 })();

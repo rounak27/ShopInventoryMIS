@@ -351,7 +351,7 @@
                   <input type="text" id="posItemSearch" class="form-control" placeholder="Type item name, SKU, color, or size"/>
                   <div id="posSearchResults"></div>
                 </div>
-                <span class="form-hint">Type at least 2 letters, then tap result to add.</span>
+                <span class="form-hint">Type 2+ letters → ↑↓ arrow keys to select → Enter to add (or Esc to close)</span>
               </div>
             </div>
           </div>
@@ -422,6 +422,7 @@
                 <th>Item</th>
                 <th>Variant</th>
                 <th class="text-center">Qty</th>
+                <th class="text-center">Remaining</th>
                 <th class="text-right">Price</th>
                 <th class="text-right">Total</th>
                 <th style="width:50px;"></th>
@@ -436,6 +437,9 @@
               </tr>
             </tbody>
           </table>
+        </div>
+        <div style="padding:12px; background:#f8fafc; border-top:1px solid #e2e8f0; font-size:.75rem; color:#64748b;">
+          <strong>⌨️ Keyboard Shortcuts:</strong> Tab = navigate fields • ↑↓ = adjust qty in cart • Delete = remove item • In search: ↑↓ = select, Enter = add, Esc = close
         </div>
       </div>
 
@@ -538,7 +542,7 @@
           <div style="position:relative;">
             <input type="text" id="posItemSearch"
               class="form-control"
-              placeholder="Type item name, SKU, size or color…"
+              placeholder="Type item… ↑↓ arrow keys → Enter to add"
               style="background:#1e293b; border:1.5px solid #334155; color:#f1f5f9; border-radius:9px; padding:10px 14px 10px 42px; font-size:.88rem; width:100%; transition:border-color .15s;"
               onfocus="this.style.borderColor='#6366f1'"
               onblur="this.style.borderColor='#334155'"
@@ -601,6 +605,7 @@
                   <th style="padding:10px 16px; text-align:left; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#64748b; border-bottom:1px solid #e2e8f0; width:35%;">Item</th>
                   <th style="padding:10px 8px; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#64748b; border-bottom:1px solid #e2e8f0;">Variant</th>
                   <th class="text-center" style="padding:10px 8px; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#64748b; border-bottom:1px solid #e2e8f0; width:80px;">Qty</th>
+                  <th class="text-center" style="padding:10px 8px; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#64748b; border-bottom:1px solid #e2e8f0; width:80px;"></th>
                   <th class="text-right" style="padding:10px 8px; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#64748b; border-bottom:1px solid #e2e8f0;">Price</th>
                   <th class="text-right" style="padding:10px 8px; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#64748b; border-bottom:1px solid #e2e8f0;">Total</th>
                   <th style="width:44px; border-bottom:1px solid #e2e8f0;"></th>
@@ -1219,8 +1224,11 @@
     transition: background-color 0.15s;
   }
 
-  #posSearchResults .search-result-item:hover {
+  #posSearchResults .search-result-item:hover,
+  #posSearchResults .search-result-item.highlighted {
     background-color: var(--page-bg);
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
   }
 
   #posSearchResults .search-result-item:last-child {

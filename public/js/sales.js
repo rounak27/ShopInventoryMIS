@@ -8,6 +8,7 @@ const SalesMgr = {
   allVariants: [],
   variantIndex: {}, // Quick lookup by barcode and ID
   searchDebounceTimer: null,
+  searchHighlightedIdx: -1, // Track keyboard navigation in search results
 
   init() {
     this.setupEventListeners();
@@ -28,10 +29,11 @@ const SalesMgr = {
       }
     });
 
-    // Item name search
+    // Item name search with keyboard navigation
     $('#posItemSearch').on('input', (e) => {
       const searchTerm = $(e.target).val().trim();
       clearTimeout(this.searchDebounceTimer);
+      this.searchHighlightedIdx = -1; // Reset highlight on new input
 
       this.searchDebounceTimer = setTimeout(() => {
         if (searchTerm.length >= 2) {
@@ -42,10 +44,47 @@ const SalesMgr = {
       }, 180);
     });
 
+    // Keyboard navigation for search results (Arrow keys, Enter, Escape)
+    $('#posItemSearch').on('keydown', (e) => {
+      const $results = $('#posSearchResults');
+      const resultItems = $results.find('.search-result-item');
+      
+      if (resultItems.length === 0) return;
+
+      switch(e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          this.searchHighlightedIdx = Math.min(this.searchHighlightedIdx + 1, resultItems.length - 1);
+          this.updateSearchHighlight(resultItems);
+          break;
+        
+        case 'ArrowUp':
+          e.preventDefault();
+          this.searchHighlightedIdx = Math.max(this.searchHighlightedIdx - 1, -1);
+          this.updateSearchHighlight(resultItems);
+          break;
+        
+        case 'Enter':
+          e.preventDefault();
+          if (this.searchHighlightedIdx >= 0) {
+            const variantId = $(resultItems[this.searchHighlightedIdx]).data('variant-id');
+            this.addVariantFromSearch(variantId);
+          }
+          break;
+        
+        case 'Escape':
+          e.preventDefault();
+          $('#posSearchResults').empty();
+          this.searchHighlightedIdx = -1;
+          break;
+      }
+    });
+
     // Close search results when clicking outside
     $(document).on('click', (e) => {
       if (!$(e.target).closest('#posSearchContainer').length) {
         $('#posSearchResults').empty();
+        this.searchHighlightedIdx = -1;
       }
     });
 
@@ -58,20 +97,49 @@ const SalesMgr = {
     $(document).on('change', '.pos-item-qty', (e) => {
       const idx = $(e.target).data('idx');
       const qty = parseInt($(e.target).val()) || 0;
-      const maxQty = this.cart[idx]?.variant?.stock || 0;
+      const item = this.cart[idx];
+      const maxQty = item?.variant?.stock || 0;
 
       if (qty > 0 && qty <= maxQty) {
         this.cart[idx].quantity = qty;
       } else if (qty > maxQty) {
+        const remaining = maxQty - item.quantity;
         $(e.target).val(this.cart[idx].quantity);
-        toast(`Only ${maxQty} in stock`, 'warning');
+        toast(`Cannot exceed stock. Only ${remaining} more available.`, 'warning');
       } else {
         $(e.target).val(this.cart[idx].quantity);
       }
+      this.renderCart();
       this.updateSummary();
     });
 
-    // Remove from cart
+    // Delete key to remove cart item (when quantity input is focused)
+    $(document).on('keydown', '.pos-item-qty', (e) => {
+      const idx = $(e.target).data('idx');
+      
+      if (e.key === 'Delete') {
+        e.preventDefault();
+        this.removeFromCart(idx);
+      } else if (e.key === 'ArrowUp') {
+        // Increment quantity with Up arrow
+        e.preventDefault();
+        const currentQty = parseInt($(e.target).val()) || 0;
+        const item = this.cart[idx];
+        const maxQty = item?.variant?.stock || 0;
+        if (currentQty < maxQty) {
+          $(e.target).val(currentQty + 1).trigger('change');
+        }
+      } else if (e.key === 'ArrowDown') {
+        // Decrement quantity with Down arrow
+        e.preventDefault();
+        const currentQty = parseInt($(e.target).val()) || 0;
+        if (currentQty > 1) {
+          $(e.target).val(currentQty - 1).trigger('change');
+        }
+      }
+    });
+
+    // Remove from cart (click or keyboard)
     $(document).on('click', '.pos-item-remove', (e) => {
       e.preventDefault();
       const idx = $(e.currentTarget).data('idx');
@@ -100,6 +168,18 @@ const SalesMgr = {
     $('#posResetBtn').on('click', () => {
       this.reset();
     });
+  },
+
+  /**
+   * Highlight search result for keyboard navigation
+   */
+  updateSearchHighlight(resultItems) {
+    $(resultItems).removeClass('highlighted');
+    if (this.searchHighlightedIdx >= 0) {
+      $(resultItems[this.searchHighlightedIdx]).addClass('highlighted');
+      // Scroll into view
+      resultItems[this.searchHighlightedIdx].scrollIntoView({ block: 'nearest' });
+    }
   },
 
   async loadVariants() {
@@ -161,8 +241,8 @@ const SalesMgr = {
 
     const html = variants
       .map(
-        (v) => `
-      <div class="search-result-item" data-variant-id="${v.id}" onclick="SalesMgr.addVariantFromSearch(${v.id})">
+        (v, idx) => `
+      <div class="search-result-item" data-variant-id="${v.id}" data-index="${idx}" style="cursor: pointer;">
         <div class="search-result-info">
           <div class="search-result-name">${v.itemName}</div>
           <div class="search-result-meta">
@@ -179,6 +259,22 @@ const SalesMgr = {
       .join('');
 
     resultsDiv.html(html);
+
+    // Add keyboard/mouse interactions to search results
+    resultsDiv.find('.search-result-item').on('click', (e) => {
+      const variantId = $(e.currentTarget).data('variant-id');
+      this.addVariantFromSearch(variantId);
+    });
+
+    // Sync mouse hover with keyboard highlight
+    resultsDiv.find('.search-result-item').on('mouseover', (e) => {
+      this.searchHighlightedIdx = $(e.currentTarget).data('index');
+      this.updateSearchHighlight(resultsDiv.find('.search-result-item'));
+    });
+
+    resultsDiv.find('.search-result-item').on('mouseleave', () => {
+      $(resultsDiv.find('.search-result-item')).removeClass('highlighted');
+    });
   },
 
   /**
@@ -294,7 +390,7 @@ const SalesMgr = {
     if (this.cart.length === 0) {
       body.html(
         `<tr id="posCartEmpty">
-          <td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">
+          <td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">
             <i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
             Cart is empty. Start scanning barcodes.
           </td>
@@ -308,6 +404,8 @@ const SalesMgr = {
         .map((item, idx) => {
           const v = item.variant;
           const lineTotal = item.price * item.quantity;
+          const remainingStock = v.stock - item.quantity;
+          const stockBadgeClass = remainingStock <= 0 ? 'badge-danger' : (remainingStock <= 5 ? 'badge-warning' : 'badge-success');
           return `
         <tr>
           <td style="font-weight:600;">${v.itemName || 'Unknown'}</td>
@@ -316,6 +414,11 @@ const SalesMgr = {
             <input type="number" class="pos-item-qty form-control"
               value="${item.quantity}" min="1" max="${v.stock}"
               data-idx="${idx}" style="width:60px;text-align:center;padding:4px;"/>
+          </td>
+          <td style="text-align:center;">
+            <span class="badge ${stockBadgeClass}" style="padding:6px 10px;font-size:.85rem;">
+              ${remainingStock} left
+            </span>
           </td>
           <td style="text-align:right;"><small>Rs. ${this.formatMoney(item.price)}</small></td>
           <td style="text-align:right;font-weight:600;">Rs. ${this.formatMoney(lineTotal)}</td>
@@ -413,6 +516,14 @@ const SalesMgr = {
         // Show invoice
         this.showInvoice(response.data);
 
+        // Refresh stock tables after sale
+        if (typeof StockMgr !== 'undefined' && StockMgr.loadStock) {
+          StockMgr.loadStock();
+        }
+        if (typeof HistoryMgr !== 'undefined' && HistoryMgr.load) {
+          HistoryMgr.load();
+        }
+
         // Reset form
         setTimeout(() => {
           this.reset();
@@ -431,7 +542,7 @@ const SalesMgr = {
     const invoice = saleData.invoice;
 
     const invoiceHTML = `
-    <div style="max-width:600px;margin:0 auto;padding:20px;font-family:monospace;background:white;border:1px solid #ccc;border-radius:4px;">
+    <div id="posInvoicePrintable" style="max-width:600px;margin:0 auto;padding:20px;font-family:monospace;background:white;border:1px solid #ccc;border-radius:4px;">
       <div style="text-align:center;margin-bottom:20px;">
         <h3 style="margin:0;">INVOICE</h3>
         <small style="color:#666;">IRD Compliant Bill</small>
@@ -507,13 +618,12 @@ const SalesMgr = {
       </div>
 
       <div style="margin-top:20px;display:flex;gap:8px;justify-content:center;">
-        <button onclick="window.print()" class="btn btn-primary" style="padding:8px 16px;">🖨️ Print</button>
-        <button onclick="this.closest('.modal-backdrop').style.display='none'" class="btn btn-outline" style="padding:8px 16px;">Close</button>
+        <button onclick="SalesMgr.printInvoiceA5()" class="btn btn-primary" style="padding:8px 16px;">Print</button>
+        <button onclick="this.closest('.modal-backdrop').remove()" class="btn btn-outline" style="padding:8px 16px;">Close</button>
       </div>
     </div>
     `;
 
-    // Show in modal
     const modal = document.createElement('div');
     modal.className = 'modal-backdrop';
     modal.style.display = 'flex';
@@ -523,7 +633,7 @@ const SalesMgr = {
     modal.innerHTML = `
       <div class="modal-box" style="max-width:650px;">
         <div class="modal-head">
-          <h5>📋 Sale Invoice</h5>
+          <h5>Sale Invoice</h5>
           <button class="modal-close" onclick="this.closest('.modal-backdrop').remove()">
             <i class="bi bi-x-lg"></i>
           </button>
@@ -534,6 +644,46 @@ const SalesMgr = {
       </div>
     `;
     document.body.appendChild(modal);
+  },
+
+  printInvoiceA5() {
+    const printable = document.getElementById('posInvoicePrintable');
+    if (!printable) {
+      window.print();
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      toast('Please allow popups for printing.', 'warning');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>Invoice Print</title>
+        <style>
+          @page { size: A5 portrait; margin: 8mm; }
+          html, body { margin: 0; padding: 0; background: #fff; font-family: monospace; }
+          #print-root { width: 100%; }
+          #print-root button { display: none !important; }
+        </style>
+      </head>
+      <body>
+        <div id="print-root">${printable.innerHTML}</div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   },
 
   reset() {

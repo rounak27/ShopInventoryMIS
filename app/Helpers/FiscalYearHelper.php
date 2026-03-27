@@ -62,10 +62,16 @@ class FiscalYearHelper
             return 1;
         }
 
-        // Extract the numeric part from bill_number and increment
-        // Bill number format: FY-001, FY-002, etc.
-        $lastBillNo = (int) preg_replace('/[^\d]/', '', $lastSale->bill_number);
-        return $lastBillNo + 1;
+        // Extract only the sequential number part after the dash
+        // Bill number format: YYYY/YY-XXX
+        if (preg_match('/-(\d+)$/', $lastSale->bill_number, $matches)) {
+            $lastBillNo = (int) $matches[1];
+        } else {
+            // Fallback if format is different
+            $lastBillNo = (int) preg_replace('/[^\d]/', '', $lastSale->bill_number);
+        }
+        
+        return (int) ($lastBillNo + 1);
     }
 
     /**
