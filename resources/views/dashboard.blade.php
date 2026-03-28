@@ -160,6 +160,7 @@
           <table class="data-table">
             <thead>
               <tr>
+                <th style="width:44px;text-align:center;">&nbsp;</th>
                 <th class="item-sort" data-sort="name">Item <i class="bi bi-chevron-expand"></i></th>
                 <th>Category</th>
                 <th class="item-sort" data-sort="brand">Brand <i class="bi bi-chevron-expand"></i></th>
