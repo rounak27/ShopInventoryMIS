@@ -93,7 +93,7 @@ class PurchaseController extends Controller
     public function index(Request $request): JsonResponse
     {
         // dd($request->all());
-        $purchases = Purchase::with(['items.variant.item', 'creator'])
+        $purchases = Purchase::with(['purchaseItems.variant.item', 'creator'])
             ->when($request->search, fn ($q) =>
                 $q->where('supplier_name', 'like', "%{$request->search}%")
                   ->orWhere('po_reference', 'like', "%{$request->search}%")

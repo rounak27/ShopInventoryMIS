@@ -24,9 +24,11 @@ class LedgerController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $type = $request->type ? strtolower((string) $request->type) : null;
+
         $entries = StockLedger::with(['variant.item', 'user'])
-            ->when($request->type, fn ($q) =>
-                $q->where('action_type', $request->type)
+            ->when($type, fn ($q) =>
+                $q->where('action_type', $type)
             )
             ->when($request->item_id, fn ($q) =>
                 $q->whereHas('variant', fn ($vq) =>

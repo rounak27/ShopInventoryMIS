@@ -307,11 +307,12 @@
           <table class="data-table">
             <thead>
               <tr>
+                <th style="width:44px;">#</th>
                 <th>PO Ref</th>
                 <th>Date</th>
-                <th>Item</th>
-                <th>Variant</th>
-                <th>Qty Added</th>
+                <th>Supplier</th>
+                <th>Lines</th>
+                <th>Total Cost</th>
                 <th>Notes</th>
                 <th>Type</th>
               </tr>
@@ -884,10 +885,10 @@
           <div class="tbar-filter">
             <select id="historyFilterType" class="form-select">
               <option value="">All Types</option>
-              <option value="Purchase">Purchase</option>
-              <option value="Sale">Sale</option>
-              <option value="Adjustment">Adjustment</option>
-              <option value="Return">Return</option>
+              <option value="purchase">Purchase</option>
+              <option value="sale">Sale</option>
+              <option value="adjustment">Adjustment</option>
+              <option value="return">Return</option>
             </select>
           </div>
           <div style="display:flex;align-items:center;gap:6px;">

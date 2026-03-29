@@ -424,6 +424,12 @@ function showPage(pageId) {
   $(`#page-${pageId}`).addClass('active');
   $('.nav-link').removeClass('active');
   $(`.nav-link[data-page="${pageId}"]`).addClass('active');
+
+  // Keep pages with live data fresh when navigated to.
+  if (pageId === 'stock' && typeof StockMgr !== 'undefined' && typeof StockMgr.loadStock === 'function') {
+    StockMgr.loadStock(1);
+  }
+
   // Close sidebar on mobile
   if (window.innerWidth < 992) {
     $('.sidebar').removeClass('open');

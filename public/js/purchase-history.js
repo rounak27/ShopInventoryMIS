@@ -10,6 +10,7 @@ const PurchaseMgr = (() => {
     let filterSearch = '';
     let filterDateFrom = '';
     let filterDateTo = '';
+  const expandedPurchaseRows = new Set();
   let purchaseRows = [];  // { id, itemId, variantKey, qty, costPrice }
   let rowCounter   = 0;
   function loadPurchases(page = 1) {
@@ -170,7 +171,13 @@ const PurchaseMgr = (() => {
 
       closeModal('purchaseModal');
       loadPurchases(currentPage);
-      HistoryMgr.init(); // Refresh ledger history
+      HistoryMgr.load(1); // Refresh ledger history without re-binding listeners
+      if (typeof StockMgr !== 'undefined' && typeof StockMgr.loadStock === 'function') {
+        StockMgr.loadStock(1);
+      }
+      if (typeof ItemMgr !== 'undefined' && typeof ItemMgr.loadItems === 'function') {
+        ItemMgr.loadItems(1);
+      }
       refreshStats();
       toast(res.message || `Purchase ${ref} saved!`, 'success');
     } catch (err) {
@@ -221,33 +228,91 @@ function renderRecentPurchases() {
     $tbody.empty();
 
     if (!purchases.length) {
-        $tbody.html(`<tr><td colspan="7"><div class="empty-state"><i class="bi bi-cart-plus"></i><p>No purchases yet.</p></div></td></tr>`);
+        $tbody.html(`<tr><td colspan="8"><div class="empty-state"><i class="bi bi-cart-plus"></i><p>No purchases yet.</p></div></td></tr>`);
         return;
     }
 
     purchases.forEach(po => {
-        // Show first item only in table
-        const firstItem = po.items && po.items.length ? po.items[0] : null;
+        const items = Array.isArray(po.items) ? po.items : [];
+        const isExpanded = expandedPurchaseRows.has(po.id);
+        const hasItems = items.length > 0;
+        const toggleIcon = isExpanded ? 'bi-dash-lg' : 'bi-plus-lg';
+        const linesLabel = `${items.length} line${items.length === 1 ? '' : 's'}`;
+        const detailRows = hasItems
+          ? items.map((item, idx) => `
+              <tr class="purchase-detail-row ${isExpanded ? '' : 'd-none'}" data-detail-for="${po.id}">
+                <td></td>
+                <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">${idx + 1}</td>
+                <td style="color:var(--text-muted);font-size:.8rem;">${esc(po.purchaseDate)}</td>
+                <td>
+                  <div class="product-cell">
+                    <div class="product-img">📦</div>
+                    <div>
+                      <div class="product-name">${esc(item.itemName || '—')}</div>
+                      <div class="product-sku">${esc(item.sku || '—')}</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="sku-chip">${esc(item.variantKey || '—')}</span></td>
+                <td class="qty-plus" style="font-weight:700;font-family:var(--font-mono);">+${Number(item.quantity || 0)}</td>
+                <td style="font-family:var(--font-mono);font-size:.78rem;">${fmt(Number(item.totalCost || 0))}</td>
+                <td style="font-size:.8rem;color:var(--text-muted);">${esc(po.notes || '—')}</td>
+                <td><span class="badge badge-purchase">Line</span></td>
+              </tr>
+            `).join('')
+          : `
+            <tr class="purchase-detail-row ${isExpanded ? '' : 'd-none'}" data-detail-for="${po.id}">
+              <td></td>
+              <td colspan="7" style="font-size:.8rem;color:var(--text-muted);">No line item details found for this purchase.</td>
+            </tr>
+          `;
 
         $tbody.append(`
-            <tr>
-                <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">${esc(po.poReference)}</td>
+            <tr class="purchase-main-row" data-purchase-id="${po.id}">
+                <td>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-icon purchase-expand-btn"
+                    data-purchase-id="${po.id}"
+                    title="${isExpanded ? 'Hide details' : 'Show details'}"
+                    ${hasItems ? '' : 'disabled'}
+                  >
+                    <i class="bi ${hasItems ? toggleIcon : 'bi-dash'}"></i>
+                  </button>
+                </td>
+                <td style="font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);">${esc(po.poReference || '—')}</td>
                 <td style="color:var(--text-muted);font-size:.8rem;">${esc(po.purchaseDate)}</td>
-                <td>${firstItem ? esc(firstItem.itemName) : '—'}</td>
-                <td>${firstItem ? esc(firstItem.variantKey) : '—'}</td>
-                <td class="qty-plus" style="font-weight:700;font-family:var(--font-mono);">${firstItem ? '+' + firstItem.quantity : '0'}</td>
+                <td>${esc(po.supplierName || '—')}</td>
+                <td><span class="sku-chip">${linesLabel}</span></td>
+                <td style="font-family:var(--font-mono);font-size:.78rem;">${fmt(Number(po.totalCost || 0))}</td>
                 <td style="font-size:.8rem;">${esc(po.notes || '—')}</td>
                 <td><span class="badge badge-purchase">Purchase</span></td>
             </tr>
+            ${detailRows}
         `);
     });
 }
+
+  function togglePurchaseDetails(purchaseId) {
+    if (expandedPurchaseRows.has(purchaseId)) {
+      expandedPurchaseRows.delete(purchaseId);
+    } else {
+      expandedPurchaseRows.add(purchaseId);
+    }
+    renderRecentPurchases();
+  }
   function init() {
     // renderRecentPurchases();
     loadPurchases();
     $(document).on('click', '#btnNewPurchase', openPurchaseModal);
     $(document).on('click', '#btnAddPurchaseRow', addRow);
     $(document).on('click', '#btnSavePurchase', savePurchase);
+    $(document).on('click', '.purchase-expand-btn', function () {
+      const purchaseId = parseInt($(this).data('purchase-id'), 10);
+      if (!Number.isNaN(purchaseId)) {
+        togglePurchaseDetails(purchaseId);
+      }
+    });
   }
 
   return { init, renderRecentPurchases };
