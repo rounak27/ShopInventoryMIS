@@ -147,7 +147,7 @@ const PurchaseMgr = (() => {
 
     const items = [];
     let valid = true;
-//need to reload
+//need to  reload
     $('#purchaseItemsContainer .pit-row').each(function () {
       const itemId     = parseInt($(this).find('.pr-item').val());
       const variantKey = $(this).find('.pr-variant').val();

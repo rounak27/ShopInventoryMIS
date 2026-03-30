@@ -249,9 +249,11 @@ const SalesMgr = {
             ${v.size ? `Size: ${v.size}` : ''} ${v.color ? `/ ${v.color}` : ''} ${v.sku ? `• SKU: ${v.sku}` : ''}
           </div>
         </div>
-        <div class="search-result-price">Rs ${(v.sellingPrice || 0).toFixed(2)}</div>
-        <div class="search-result-stock" style="background-color: ${v.stock > 0 ? 'var(--success-bg)' : 'var(--danger-bg)'}; color: ${v.stock > 0 ? 'var(--success)' : 'var(--danger)'};">
-          ${v.stock} in stock
+        <div class="search-result-right">
+          <div class="search-result-price">Rs ${(v.sellingPrice || 0).toFixed(2)}</div>
+          <div class="search-result-stock" style="background-color: ${v.stock > 0 ? 'var(--success-bg)' : 'var(--danger-bg)'}; color: ${v.stock > 0 ? 'var(--success)' : 'var(--danger)'};">
+            ${v.stock} in stock
+          </div>
         </div>
       </div>
     `
@@ -455,9 +457,9 @@ const SalesMgr = {
     const grandTotal = taxableAmount + vat;
 
     // Update display
-    $('#posSummaryItems').text(this.cart.length);
-    $('#posCartCountBadge').text(this.cart.length);
-    $('#posSummaryQty').text(totalQty);
+    $('[id="posSummaryItems"]').text(this.cart.length);
+    $('[id="posCartCountBadge"]').text(this.cart.length);
+    $('[id="posSummaryQty"]').text(totalQty);
     $('#posSummarySubtotal').text('Rs. ' + this.formatMoney(subtotal));
     $('#posSummaryDiscount').text('Rs. ' + this.formatMoney(discountAmount));
     $('#posSummaryTaxable').text('Rs. ' + this.formatMoney(taxableAmount));
@@ -700,7 +702,16 @@ const SalesMgr = {
 
 // Initialize on document ready
 $(document).ready(() => {
-  if ($('#page-sales').length) {
-    SalesMgr.init();
+  const initSales = () => {
+    if ($('#page-sales').length) {
+      SalesMgr.init();
+    }
+  };
+
+  if (window.AppAuth?.ready) {
+    initSales();
+    return;
   }
+
+  $(document).one('app:auth-ready', initSales);
 });

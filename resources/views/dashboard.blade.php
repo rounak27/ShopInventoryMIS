@@ -3,7 +3,7 @@
 <!-- ══════════════════════════════════════════
          PAGE: DASHBOARD
     ══════════════════════════════════════════ -->
-    <div class="page" id="page-dashboard">
+    <div class="page active" id="page-dashboard">
       <div class="page-head">
         <div class="page-head-left">
           <div class="breadcrumb-bar"><i class="bi bi-house-fill"></i><span class="bc-sep">/</span><span class="bc-cur">Dashboard</span></div>
@@ -151,8 +151,8 @@
             <button class="btn btn-outline btn-sm" onclick="toast('Importing CSV — wire to Laravel import endpoint','info')">
               <i class="bi bi-upload"></i> Import
             </button>
-            <button class="btn btn-outline btn-sm" onclick="toast('Exporting CSV…','info')">
-              <i class="bi bi-download"></i> Export
+            <button class="btn btn-outline btn-sm" id="btnExportItemsExcel">
+              <i class="bi bi-file-earmark-excel"></i> Export Excel
             </button>
           </div>
         </div>
@@ -201,6 +201,11 @@
           <div class="tbar-search">
             <i class="bi bi-search tbar-search-ico"></i>
             <input type="text" id="catSearchInput" placeholder="Search categories…"/>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm" id="btnExportCategoriesExcel">
+              <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </button>
           </div>
         </div>
         <div style="overflow-x:auto;">
@@ -259,6 +264,11 @@
               <option value="out_of_stock">Out of Stock</option>
             </select>
           </div>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm" id="btnExportStockExcel">
+              <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </button>
+          </div>
         </div>
         <div style="overflow-x:auto;">
           <table class="data-table">
@@ -302,6 +312,9 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title"><i class="bi bi-clock-history"></i> Recent Purchases</div>
+          <button class="btn btn-outline btn-sm" id="btnExportPurchasesExcel">
+            <i class="bi bi-file-earmark-excel"></i> Export Excel
+          </button>
         </div>
         <div style="overflow-x:auto;">
           <table class="data-table">
@@ -488,10 +501,10 @@
       All JS IDs, classes, data-* preserved exactly.
       Layout and visual treatment only improved.
   ══════════════════════════════════════════ -->
-  <div class="page" id="page-sales" style="padding: 0; background: var(--bg, #f1f5f9);">
+  <div class="page pos-redesign-page" id="page-sales" style="padding: 0; background: var(--bg, #f1f5f9);">
 
     <!-- ── Top Topbar ─────────────────────────────────────────── -->
-    <div style="background:#fff; border-bottom:1px solid #e2e8f0; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; position:sticky; top:0; z-index:100;">
+    <div class="pos-topbar" style="background:#fff; border-bottom:1px solid #e2e8f0; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; position:sticky; top:0; z-index:100;">
       <div>
         <div style="font-size:.68rem; color:#94a3b8; text-transform:uppercase; letter-spacing:.8px; margin-bottom:2px;">
           <a onclick="showPage('dashboard')" style="cursor:pointer; color:#94a3b8; text-decoration:none;">Home</a>
@@ -500,7 +513,7 @@
         </div>
         <div style="font-size:1.05rem; font-weight:700; color:#0f172a; line-height:1.2;">Sales Point</div>
       </div>
-      <div style="display:flex; align-items:center; gap:8px;">
+      <div class="pos-topbar-actions" style="display:flex; align-items:center; gap:8px;">
         <span style="font-size:.75rem; color:#94a3b8; display:none;" class="d-sm-inline">
           Cart: <strong id="posCartCountBadge" style="color:#6366f1;">0</strong> items
         </span>
@@ -514,11 +527,11 @@
     </div>
 
     <!-- ── Scan Row ───────────────────────────────────────────── -->
-    <div style="background:#0f172a; padding:14px 20px;">
-      <div style="display:flex; gap:12px; max-width:1400px; margin:0 auto; align-items:flex-end; flex-wrap:wrap;">
+    <div class="pos-scan-strip" style="background:#0f172a; padding:14px 20px;">
+      <div class="pos-scan-inner" style="display:flex; gap:12px; max-width:1400px; margin:0 auto; align-items:flex-end; flex-wrap:wrap;">
 
         <!-- Barcode -->
-        <div style="flex:0 0 340px; min-width:220px;">
+        <div class="pos-barcode-block" style="flex:0 0 340px; min-width:220px;">
           <label style="display:block; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.9px; color:#64748b; margin-bottom:5px;">
             <i class="bi bi-upc-scan" style="color:#6366f1; margin-right:4px;"></i> Barcode
           </label>
@@ -537,7 +550,7 @@
         </div>
 
         <!-- Item Search -->
-        <div style="flex:1; min-width:200px;" id="posSearchContainer" class="pos-search-wrap">
+        <div class="pos-search-block" style="flex:1; min-width:200px;" id="posSearchContainer" class="pos-search-wrap">
           <label style="display:block; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.9px; color:#64748b; margin-bottom:5px;">
             <i class="bi bi-search" style="color:#6366f1; margin-right:4px;"></i> Search Item
           </label>
@@ -559,7 +572,7 @@
         </div>
 
         <!-- Live Grand Total Chip -->
-        <div style="text-align:right; min-width:130px; padding-bottom:6px;">
+        <div class="pos-total-chip" style="text-align:right; min-width:130px; padding-bottom:6px;">
           <div style="font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#64748b; margin-bottom:3px;">Grand Total</div>
           <div id="posSummaryGrandTotalMini" style="font-size:1.35rem; font-weight:800; color:#4ade80; font-family:monospace; line-height:1;">Rs. 0.00</div>
         </div>
@@ -567,18 +580,18 @@
     </div>
 
     <!-- ── Main Two-Column Layout ─────────────────────────────── -->
-    <div style="display:flex; gap:0; max-width:1400px; margin:0 auto; padding:20px; align-items:flex-start; flex-wrap:wrap; gap:16px;">
+    <div class="pos-main-layout" style="display:flex; gap:0; max-width:1400px; margin:0 auto; padding:20px; align-items:flex-start; flex-wrap:wrap; gap:16px;">
 
       <!-- ══════════════════════════════════════
           LEFT — Cart (70%)
       ══════════════════════════════════════ -->
-      <div style="flex:1 1 60%; min-width:300px;">
+      <div class="pos-main-left" style="flex:1 1 60%; min-width:300px;">
 
         <!-- Cart Card -->
-        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.06);">
+        <div class="pos-cart-card" style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.06);">
 
           <!-- Cart Header -->
-          <div style="padding:14px 18px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; background:#fafafa;">
+          <div class="card-header pos-cart-head" style="padding:14px 18px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; background:#fafafa;">
             <div style="display:flex; align-items:center; gap:8px;">
               <div style="width:32px; height:32px; background:#eef2ff; border-radius:8px; display:flex; align-items:center; justify-content:center;">
                 <i class="bi bi-cart-fill" style="color:#6366f1; font-size:.9rem;"></i>
@@ -634,7 +647,7 @@
           <div style="font-size:.78rem; font-weight:700; color:#0f172a; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
             <i class="bi bi-person-circle" style="color:#6366f1;"></i> Customer Details <span style="font-weight:400; color:#94a3b8;">(optional)</span>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="pos-customer-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <div class="form-group" style="margin:0;">
               <label class="form-label" style="font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#64748b; margin-bottom:5px; display:block;">Customer Name</label>
               <input type="text" id="posCustomerName" class="form-control"
@@ -658,7 +671,7 @@
       <!-- ══════════════════════════════════════
           RIGHT — Billing Summary (30%)
       ══════════════════════════════════════ -->
-      <div style="flex:0 0 300px; min-width:260px; position:sticky; top:72px;">
+      <div class="pos-main-right" style="flex:0 0 300px; min-width:260px; position:sticky; top:72px;">
 
         <div style="background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.06);">
 
@@ -872,7 +885,7 @@
           <div class="pg-sub">Complete audit trail of every stock movement — purchases, sales, adjustments.</div>
         </div>
         <button class="btn btn-outline" id="btnExportHistory">
-          <i class="bi bi-download"></i> Export CSV
+          <i class="bi bi-file-earmark-excel"></i> Export Excel
         </button>
       </div>
 
@@ -1265,6 +1278,13 @@
     white-space: nowrap;
   }
 
+  .search-result-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
   .search-result-stock {
     font-size: 0.78rem;
     padding: 4px 8px;
@@ -1386,6 +1406,81 @@
   }
 
   @media (max-width: 768px) {
+    .pos-topbar {
+      padding: 10px 12px !important;
+      flex-wrap: wrap;
+    }
+
+    .pos-topbar-actions {
+      width: 100%;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .pos-scan-strip {
+      padding: 12px !important;
+    }
+
+    .pos-scan-inner,
+    .pos-main-layout {
+      gap: 10px !important;
+    }
+
+    .pos-main-layout {
+      padding: 12px !important;
+    }
+
+    .pos-barcode-block,
+    .pos-search-block,
+    .pos-total-chip,
+    .pos-main-left,
+    .pos-main-right {
+      flex: 1 1 100% !important;
+      min-width: 0 !important;
+    }
+
+    .pos-main-right {
+      position: static !important;
+      top: auto !important;
+    }
+
+    .pos-total-chip {
+      text-align: left !important;
+      padding-bottom: 0 !important;
+    }
+
+    .pos-customer-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    #posSearchContainer {
+      z-index: 120;
+    }
+
+    #posSearchResults {
+      left: 0 !important;
+      right: 0 !important;
+      max-height: 48vh !important;
+      border-radius: 10px !important;
+      z-index: 1200 !important;
+    }
+
+    #posSearchResults .search-result-item {
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    #posSearchResults .search-result-info {
+      width: 100%;
+    }
+
+    #posSearchResults .search-result-right {
+      width: 100%;
+      margin-left: 0;
+      justify-content: space-between;
+    }
+
     .pos-entry-row {
       grid-template-columns: 1fr;
     }
@@ -1411,6 +1506,10 @@
     .pos-cart-card td {
       font-size: 0.82rem;
       padding: 8px 6px;
+    }
+
+    #posCartBody td {
+      word-break: break-word;
     }
 
     .pos-mobile-checkout {

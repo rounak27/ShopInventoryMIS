@@ -155,6 +155,7 @@
 <!-- Toastr JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <!-- App modules -->
 <script src="{{ asset('js/app.js') }}"></script>
@@ -241,75 +242,88 @@ function triggerPwaInstall() {
 /* ── Init all modules ── */
 
 $(document).ready(function () {
+  function initializeDashboardModules() {
+    if (initializeDashboardModules.initialized) return;
+    initializeDashboardModules.initialized = true;
 
-  ItemMgr.init();
-  CatMgr.init();
-  StockMgr.init();
-  PurchaseMgr.init();
-  HistoryMgr.init();
+    ItemMgr.init();
+    CatMgr.init();
+    StockMgr.init();
+    PurchaseMgr.init();
+    HistoryMgr.init();
 
-  /* ── Dashboard ledger preview ── */
-  function renderDashLedger() {
-    const recent = Store.ledger.slice(0, 8);
-    const typeConfig = {
-      Purchase:   'badge-purchase',
-      Sale:       'badge-sale',
-      Adjustment: 'badge-adjustment',
-    };
-    const $tbody = $('#dashLedgerBody');
-    $tbody.empty();
-    recent.forEach(e => {
-      const item = Store.getItem(e.itemId) || {};
-      const cls  = typeConfig[e.type] || 'badge-dark';
-      const plus = e.qty >= 0;
-      $tbody.append(`
-        <tr>
-          <td style="color:var(--text-muted);font-size:.78rem;">${e.date}</td>
-          <td>
-            <div style="display:flex;align-items:center;gap:7px;">
-              <span style="font-size:1.1rem;">${item.emoji || '📦'}</span>
-              <div>
-                <div style="font-weight:600;font-size:.82rem;">${esc(item.name || '—')}</div>
-                <div style="font-size:.7rem;color:var(--text-muted);font-family:var(--font-mono);">${esc(item.sku || '')}</div>
+    /* ── Dashboard ledger preview ── */
+    function renderDashLedger() {
+      const recent = Store.ledger.slice(0, 8);
+      const typeConfig = {
+        Purchase:   'badge-purchase',
+        Sale:       'badge-sale',
+        Adjustment: 'badge-adjustment',
+      };
+      const $tbody = $('#dashLedgerBody');
+      $tbody.empty();
+      recent.forEach(e => {
+        const item = Store.getItem(e.itemId) || {};
+        const cls  = typeConfig[e.type] || 'badge-dark';
+        const plus = e.qty >= 0;
+        $tbody.append(`
+          <tr>
+            <td style="color:var(--text-muted);font-size:.78rem;">${e.date}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:7px;">
+                <span style="font-size:1.1rem;">${item.emoji || '📦'}</span>
+                <div>
+                  <div style="font-weight:600;font-size:.82rem;">${esc(item.name || '—')}</div>
+                  <div style="font-size:.7rem;color:var(--text-muted);font-family:var(--font-mono);">${esc(item.sku || '')}</div>
+                </div>
               </div>
-            </div>
-          </td>
-          <td><span class="sku-chip">${esc(e.variantKey)}</span></td>
-          <td><span class="badge ${cls}">${e.type}</span></td>
-          <td class="${plus ? 'qty-plus' : 'qty-minus'}" style="font-family:var(--font-mono);font-weight:700;">${plus?'+':''}${e.qty}</td>
-          <td style="font-family:var(--font-mono);font-size:.73rem;color:var(--text-muted);">${e.ref || '—'}</td>
-        </tr>`);
+            </td>
+            <td><span class="sku-chip">${esc(e.variantKey)}</span></td>
+            <td><span class="badge ${cls}">${e.type}</span></td>
+            <td class="${plus ? 'qty-plus' : 'qty-minus'}" style="font-family:var(--font-mono);font-weight:700;">${plus?'+':''}${e.qty}</td>
+            <td style="font-family:var(--font-mono);font-size:.73rem;color:var(--text-muted);">${e.ref || '—'}</td>
+          </tr>`);
+      });
+    }
+    renderDashLedger();
+
+    /* ── Update low stock count badge in sidebar ── */
+    function updateSidebarBadge() {
+      const lowCount = Store.getLowStockCount() + Store.getOutOfStockCount();
+      const $badge = $('#navLowCount');
+      if (lowCount > 0) { $badge.text(lowCount).show(); }
+      else { $badge.hide(); }
+    }
+    updateSidebarBadge();
+
+    /* ── Global search → go to items page ── */
+    $('#globalSearch').on('input', function () {
+      const q = $(this).val().trim();
+      if (q) {
+        showPage('items');
+        $('#itemSearchInput').val(q).trigger('input');
+      }
     });
+
+    /* ── Keyboard shortcut: Ctrl+K → focus search ── */
+    $(document).on('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        $('#globalSearch').focus();
+      }
+    });
+
+    console.log('%c📦 StockWise Inventory Module loaded', 'color:#6366f1;font-weight:700;font-size:13px;');
   }
-  renderDashLedger();
 
-  /* ── Update low stock count badge in sidebar ── */
-  function updateSidebarBadge() {
-    const lowCount = Store.getLowStockCount() + Store.getOutOfStockCount();
-    const $badge = $('#navLowCount');
-    if (lowCount > 0) { $badge.text(lowCount).show(); }
-    else { $badge.hide(); }
+  if (window.AppAuth?.ready) {
+    initializeDashboardModules();
+    return;
   }
-  updateSidebarBadge();
 
-  /* ── Global search → go to items page ── */
-  $('#globalSearch').on('input', function () {
-    const q = $(this).val().trim();
-    if (q) {
-      showPage('items');
-      $('#itemSearchInput').val(q).trigger('input');
-    }
+  $(document).one('app:auth-ready', function () {
+    initializeDashboardModules();
   });
-
-  /* ── Keyboard shortcut: Ctrl+K → focus search ── */
-  $(document).on('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      $('#globalSearch').focus();
-    }
-  });
-
-  console.log('%c📦 StockWise Inventory Module loaded', 'color:#6366f1;font-weight:700;font-size:13px;');
 });
 </script>
 

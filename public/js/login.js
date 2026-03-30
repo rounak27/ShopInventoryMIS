@@ -11,9 +11,30 @@ $(function () {
     toastr[toastrType](msg);
   }
 
+  function validateStoredToken(token) {
+    return new Promise((resolve, reject) => {
+      $.ajax({
+        url: `${Config.apiBase}/test?_=${Date.now()}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        },
+        success: () => resolve(true),
+        error: () => reject(new Error('Invalid token'))
+      });
+    });
+  }
+
   const token = localStorage.getItem('token');
   if (token) {
-    window.location.href = `${baseURL}/dashboard`;
+    validateStoredToken(token)
+      .then(() => {
+        window.location.href = `${baseURL}/dashboard`;
+      })
+      .catch(() => {
+        localStorage.removeItem('token');
+      });
     return;
   }
 

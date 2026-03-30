@@ -13,11 +13,14 @@ const baseURL=$('#baseUrl').text();
    ================================================================ */
 const Config = {
   apiBase:      baseURL+ '/api/v1/inventory',
+  authCheckUrl: baseURL + '/api/v1/test',
   lowStockThresh: 10,
   currency:       'Rs.',
   dateFormat:     'YYYY-MM-DD',
   itemsPerPage:   10,
 };
+
+window.AppAuth = window.AppAuth || { ready: false };
 
 /* ================================================================
    MOCK DATA STORE (replace with AJAX to Laravel)
@@ -246,6 +249,102 @@ function renderPaginationBtns($container, info, onPage) {
   });
 }
 
+
+function collectTableData(tableSelector, skipColumns = []) {
+  const table = document.querySelector(tableSelector);
+  if (!table) return [];
+
+  const rows = Array.from(table.querySelectorAll('tr'));
+  const data = [];
+
+  rows.forEach((row) => {
+    const isHidden = window.getComputedStyle(row).display === 'none';
+    if (isHidden) return;
+
+    const cells = Array.from(row.querySelectorAll('th, td'));
+    if (!cells.length) return;
+
+    const rowData = cells
+      .map((cell, idx) => {
+        if (skipColumns.includes(idx)) return null;
+        const text = (cell.innerText || '').replace(/\s+/g, ' ').trim();
+        return text;
+      })
+      .filter((value) => value !== null);
+
+    if (!rowData.length) return;
+    data.push(rowData);
+  });
+
+  return data;
+}
+
+function exportTableToExcel({ tableSelector, fileName, sheetName, skipColumns = [] }) {
+  if (typeof XLSX === 'undefined') {
+    toast('Excel export library is not loaded.', 'danger');
+    return;
+  }
+
+  const tableData = collectTableData(tableSelector, skipColumns);
+  if (!tableData.length) {
+    toast('No table data found to export.', 'warning');
+    return;
+  }
+
+  const worksheet = XLSX.utils.aoa_to_sheet(tableData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName || 'Sheet1');
+
+  XLSX.writeFile(workbook, `${fileName || 'table-export'}.xlsx`);
+  toast('Excel export generated successfully.', 'success');
+}
+
+function bindExcelExportButtons() {
+  $(document).on('click', '#btnExportItemsExcel', function () {
+    exportTableToExcel({
+      tableSelector: '#page-items table.data-table',
+      fileName: `items-${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Items',
+      skipColumns: [0, 8]
+    });
+  });
+
+  $(document).on('click', '#btnExportCategoriesExcel', function () {
+    exportTableToExcel({
+      tableSelector: '#page-categories table.data-table',
+      fileName: `categories-${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Categories',
+      skipColumns: [5]
+    });
+  });
+
+  $(document).on('click', '#btnExportStockExcel', function () {
+    exportTableToExcel({
+      tableSelector: '#page-stock table.data-table',
+      fileName: `stock-${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Stock',
+      skipColumns: [7]
+    });
+  });
+
+  $(document).on('click', '#btnExportPurchasesExcel', function () {
+    exportTableToExcel({
+      tableSelector: '#page-purchase table.data-table',
+      fileName: `purchases-${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Purchases',
+      skipColumns: [0]
+    });
+  });
+
+  $(document).on('click', '#btnExportHistory', function () {
+    exportTableToExcel({
+      tableSelector: '#page-history table.data-table',
+      fileName: `stock-history-${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'StockHistory'
+    });
+  });
+}
+
 /* ── AJAX stub (wire to Laravel routes) ── */
 // const API = {
 //   get(endpoint, data, cb)     { console.log('[GET]',  endpoint, data); if (cb) cb({}); },
@@ -373,6 +472,78 @@ const API = {
     });
   }
 };
+
+function validateTokenBeforeBoot() {
+  return new Promise((resolve, reject) => {
+    $.ajax({
+      url: `${Config.authCheckUrl}?_=${Date.now()}`,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${API.getToken()}`,
+        'Accept': 'application/json'
+      },
+      success: () => resolve(true),
+      error: (xhr) => {
+        if (API.handleAuthError(xhr)) {
+          return reject(new Error('Session expired'));
+        }
+
+        localStorage.removeItem('token');
+        window.location.href = `${baseURL}/login?auth=required`;
+        reject(new Error('Unauthorized'));
+      }
+    });
+  });
+}
+
+function bootDashboardApp() {
+  window.AppAuth.ready = true;
+  $(document).trigger('app:auth-ready');
+  bindExcelExportButtons();
+
+  ItemMgr.loadItems();
+  refreshStats();
+  showPage('dashboard');
+
+  // Nav clicks
+  $(document).on('click', '.nav-link', function () {
+    showPage($(this).data('page'));
+  });
+
+  // Logout flow
+  $(document).on('click', '.user-logout', function () {
+    const modalEl = document.getElementById('logoutConfirmModal');
+    if (!modalEl) return;
+
+    const logoutModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    logoutModal.show();
+  });
+
+  $(document).on('click', '#confirmLogoutBtn', function () {
+    localStorage.clear();
+    window.location.href = `${baseURL}/login`;
+  });
+
+  // Sidebar toggle (mobile)
+  $('#sidebarToggleBtn').on('click', function () {
+    $('.sidebar').toggleClass('open');
+    $('.sidebar-backdrop-overlay').toggleClass('show');
+  });
+  $('.sidebar-backdrop-overlay').on('click', function () {
+    $('.sidebar').removeClass('open');
+    $(this).removeClass('show');
+  });
+
+  // Close modal on backdrop click
+  $(document).on('click', '.modal-backdrop', function (e) {
+    if ($(e.target).is('.modal-backdrop')) closeAllModals();
+  });
+
+  // Close modal on X button
+  $(document).on('click', '.modal-close', function () {
+    $(this).closest('.modal-backdrop').removeClass('show');
+  });
+}
 /* ── Update Dashboard Stats ── */
 function refreshStats() {
   const applyStats = (items, totalItemsOverride = null) => {
@@ -450,54 +621,17 @@ function showPage(pageId) {
 /* ── Boot ── */
 $(document).ready(function () {
   const token = localStorage.getItem('token');
-  console.log("Token:",token);
-  
+
   if (!token) {
     window.location.href = `${baseURL}/login?auth=required`;
     return;
   }
 
-  // Store.loadCategories(0);
-  ItemMgr.loadItems();
-  refreshStats();
-  showPage('dashboard');
-
-  // Nav clicks
-  $(document).on('click', '.nav-link', function () {
-    showPage($(this).data('page'));
-  });
-
-  // Logout flow
-  $(document).on('click', '.user-logout', function () {
-    const modalEl = document.getElementById('logoutConfirmModal');
-    if (!modalEl) return;
-
-    const logoutModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    logoutModal.show();
-  });
-
-  $(document).on('click', '#confirmLogoutBtn', function () {
-    localStorage.clear();
-    window.location.href = `${baseURL}/login`;
-  });
-
-  // Sidebar toggle (mobile)
-  $('#sidebarToggleBtn').on('click', function () {
-    $('.sidebar').toggleClass('open');
-    $('.sidebar-backdrop-overlay').toggleClass('show');
-  });
-  $('.sidebar-backdrop-overlay').on('click', function () {
-    $('.sidebar').removeClass('open');
-    $(this).removeClass('show');
-  });
-
-  // Close modal on backdrop click
-  $(document).on('click', '.modal-backdrop', function (e) {
-    if ($(e.target).is('.modal-backdrop')) closeAllModals();
-  });
-
-  // Close modal on X button
-  $(document).on('click', '.modal-close', function () {
-    $(this).closest('.modal-backdrop').removeClass('show');
-  });
+  validateTokenBeforeBoot()
+    .then(() => {
+      bootDashboardApp();
+    })
+    .catch(() => {
+      // Redirect is already handled in validateTokenBeforeBoot.
+    });
 });
