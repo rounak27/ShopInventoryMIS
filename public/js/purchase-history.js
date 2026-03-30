@@ -147,7 +147,7 @@ const PurchaseMgr = (() => {
 
     const items = [];
     let valid = true;
-
+//need to reload
     $('#purchaseItemsContainer .pit-row').each(function () {
       const itemId     = parseInt($(this).find('.pr-item').val());
       const variantKey = $(this).find('.pr-variant').val();
@@ -170,6 +170,7 @@ const PurchaseMgr = (() => {
       }
 
       closeModal('purchaseModal');
+
       loadPurchases(currentPage);
       HistoryMgr.load(1); // Refresh ledger history without re-binding listeners
       if (typeof StockMgr !== 'undefined' && typeof StockMgr.loadStock === 'function') {
