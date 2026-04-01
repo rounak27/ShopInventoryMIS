@@ -254,18 +254,35 @@ $(document).ready(function () {
 
     /* ── Dashboard ledger preview ── */
     function renderDashLedger() {
-      const recent = Store.ledger.slice(0, 8);
+      const recent = (Store.ledger || []).slice(0, 8);
       const typeConfig = {
         Purchase:   'badge-purchase',
         Sale:       'badge-sale',
         Adjustment: 'badge-adjustment',
+        Return:     'badge-return',
       };
       const $tbody = $('#dashLedgerBody');
+      if (!$tbody.length) return;
       $tbody.empty();
+
+      if (!recent.length) {
+        $tbody.html(`
+          <tr>
+            <td colspan="6" style="text-align:center;color:var(--text-muted);font-size:.82rem;padding:14px;">
+              No stock movements yet.
+            </td>
+          </tr>
+        `);
+        return;
+      }
+
       recent.forEach(e => {
         const item = Store.getItem(e.itemId) || {};
-        const cls  = typeConfig[e.type] || 'badge-dark';
+        const cls  = typeConfig[e.type] || typeConfig[(e.type || '').charAt(0).toUpperCase() + (e.type || '').slice(1).toLowerCase()] || 'badge-dark';
         const plus = e.qty >= 0;
+        const itemName = e.itemName || item.name || '—';
+        const itemSku = e.sku || item.sku || '';
+        const variantKey = e.variantKey || e.variant || '—';
         $tbody.append(`
           <tr>
             <td style="color:var(--text-muted);font-size:.78rem;">${e.date}</td>
@@ -273,19 +290,23 @@ $(document).ready(function () {
               <div style="display:flex;align-items:center;gap:7px;">
                 <span style="font-size:1.1rem;">${item.emoji || '📦'}</span>
                 <div>
-                  <div style="font-weight:600;font-size:.82rem;">${esc(item.name || '—')}</div>
-                  <div style="font-size:.7rem;color:var(--text-muted);font-family:var(--font-mono);">${esc(item.sku || '')}</div>
+                  <div style="font-weight:600;font-size:.82rem;">${esc(itemName)}</div>
+                  <div style="font-size:.7rem;color:var(--text-muted);font-family:var(--font-mono);">${esc(itemSku)}</div>
                 </div>
               </div>
             </td>
-            <td><span class="sku-chip">${esc(e.variantKey)}</span></td>
-            <td><span class="badge ${cls}">${e.type}</span></td>
+            <td><span class="sku-chip">${esc(variantKey)}</span></td>
+            <td><span class="badge ${cls}">${esc(e.type || '—')}</span></td>
             <td class="${plus ? 'qty-plus' : 'qty-minus'}" style="font-family:var(--font-mono);font-weight:700;">${plus?'+':''}${e.qty}</td>
             <td style="font-family:var(--font-mono);font-size:.73rem;color:var(--text-muted);">${e.ref || '—'}</td>
           </tr>`);
       });
     }
     renderDashLedger();
+
+    $(document).on('ledger:updated', function () {
+      renderDashLedger();
+    });
 
     /* ── Update low stock count badge in sidebar ── */
     function updateSidebarBadge() {

@@ -467,6 +467,9 @@ const HistoryMgr = (() => {
 
   });
 
+  // Let dashboard preview and other listeners refresh from the same ledger source.
+  $(document).trigger('ledger:updated', [data]);
+
   /* Pagination */
 
   const meta = Store.ledgerMeta;
