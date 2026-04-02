@@ -125,7 +125,7 @@ const ItemMgr = (() => {
     if (!variant) return 'Variant';
     return `${variant.size || ''}${variant.color ? ` / ${variant.color}` : ''}`.trim() || 'Variant';
   }
-
+  //building barcoded svg using JsBarcode library
   function buildBarcodeSvg(barcodeValue) {
     if (typeof JsBarcode === 'undefined') return '';
 
