@@ -790,85 +790,6 @@
       </button>
     </div>
 
-    <!-- ── Sales Statement Report ───────────────────────────── -->
-    <div class="card" style="margin:20px; border-radius:14px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.06);">
-      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-        <div>
-          <div class="card-title" style="margin-bottom:2px;"><i class="bi bi-journal-text"></i> Daily Statement Report</div>
-          <div style="font-size:.8rem;color:var(--text-muted);">Default view: last 30 days, all users</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <select id="salesReportUserFilter" class="form-select" style="min-width:240px;">
-            <option value="">All Users</option>
-          </select>
-          <button class="btn btn-outline btn-sm" id="salesReportRefresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-        </div>
-      </div>
-      <div class="card-body">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;">
-          <div style="background:linear-gradient(135deg,#0f172a,#1e293b);color:#f8fafc;border-radius:12px;padding:14px 16px;">
-            <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;">Period</div>
-            <div id="salesReportPeriod" style="font-weight:700;margin-top:4px;">—</div>
-          </div>
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;">
-            <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.7px;color:#64748b;">Bills</div>
-            <div id="salesReportBills" style="font-size:1.4rem;font-weight:800;color:#0f172a;">0</div>
-          </div>
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;">
-            <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.7px;color:#64748b;">Subtotal</div>
-            <div id="salesReportSubtotal" style="font-size:1.15rem;font-weight:800;color:#0f172a;">Rs. 0.00</div>
-          </div>
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;">
-            <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.7px;color:#64748b;">Grand Total</div>
-            <div id="salesReportGrandTotal" style="font-size:1.15rem;font-weight:800;color:#10b981;">Rs. 0.00</div>
-          </div>
-        </div>
-
-        <div class="row g-3">
-          <div class="col-lg-7">
-            <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-              <div style="padding:12px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:700;">Datewise Summary</div>
-              <div style="overflow-x:auto;">
-                <table class="data-table" style="margin-bottom:0;">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th style="text-align:center;">Bills</th>
-                      <th style="text-align:right;">Subtotal</th>
-                      <th style="text-align:right;">Discount</th>
-                      <th style="text-align:right;">VAT</th>
-                      <th style="text-align:right;">Grand Total</th>
-                    </tr>
-                  </thead>
-                  <tbody id="salesReportDatewiseBody"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-5">
-            <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-              <div style="padding:12px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-weight:700;">Userwise Summary</div>
-              <div style="overflow-x:auto;">
-                <table class="data-table" style="margin-bottom:0;">
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th style="text-align:center;">Bills</th>
-                      <th style="text-align:right;">Subtotal</th>
-                      <th style="text-align:right;">Discount</th>
-                      <th style="text-align:right;">VAT</th>
-                      <th style="text-align:right;">Grand Total</th>
-                    </tr>
-                  </thead>
-                  <tbody id="salesReportUserwiseBody"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Mobile: show sticky bar on small screens -->
     <style>
       @media (max-width: 768px) {
@@ -952,6 +873,135 @@
       /* #page-sales { display: block; } */
     </style>
   </div>
+
+    <!-- ══════════════════════════════════════════
+         PAGE: DAILY STATEMENT
+    ══════════════════════════════════════════ -->
+    <div class="page" id="page-statement">
+      <div class="page-head">
+        <div class="page-head-left">
+          <div class="breadcrumb-bar"><a onclick="showPage('dashboard')" style="cursor:pointer;">Home</a><span class="bc-sep">/</span><span class="bc-cur">Daily Statement</span></div>
+          <div class="pg-title">Daily Statement</div>
+          <div class="pg-sub">Drill-down financial statement for the last 30 days or a custom date range.</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="date" id="salesReportDateFrom" class="form-control" style="width:160px;" />
+          <input type="date" id="salesReportDateTo" class="form-control" style="width:160px;" />
+          <select id="salesReportUserFilter" class="form-select" style="min-width:240px;">
+            <option value="">All Users</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="salesReportRefresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+            <div style="background:linear-gradient(135deg,#0f172a,#1e293b);color:#f8fafc;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;">Period</div>
+              <div id="salesReportPeriod" style="font-weight:700;margin-top:4px;">—</div>
+            </div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.7px;color:#64748b;">Bills</div>
+              <div id="salesReportBills" style="font-size:1.4rem;font-weight:800;color:#0f172a;">0</div>
+            </div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.7px;color:#64748b;">Subtotal</div>
+              <div id="salesReportSubtotal" style="font-size:1.15rem;font-weight:800;color:#0f172a;">Rs. 0.00</div>
+            </div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;">
+              <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.7px;color:#64748b;">Grand Total</div>
+              <div id="salesReportGrandTotal" style="font-size:1.15rem;font-weight:800;color:#10b981;">Rs. 0.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3" style="margin-bottom:16px;">
+        <div class="col-lg-7">
+          <div class="card h-100">
+            <div class="card-header"><strong>Datewise Summary</strong></div>
+            <div class="card-body p-0" style="overflow-x:auto;">
+              <table class="data-table" style="margin-bottom:0;">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th style="text-align:center;">Bills</th>
+                    <th style="text-align:right;">Subtotal</th>
+                    <th style="text-align:right;">Discount</th>
+                    <th style="text-align:right;">VAT</th>
+                    <th style="text-align:right;">Grand Total</th>
+                  </tr>
+                </thead>
+                <tbody id="salesReportDatewiseBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="card h-100">
+            <div class="card-header"><strong>Userwise Summary</strong></div>
+            <div class="card-body p-0" style="overflow-x:auto;">
+              <table class="data-table" style="margin-bottom:0;">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th style="text-align:center;">Bills</th>
+                    <th style="text-align:right;">Subtotal</th>
+                    <th style="text-align:right;">Discount</th>
+                    <th style="text-align:right;">VAT</th>
+                    <th style="text-align:right;">Grand Total</th>
+                  </tr>
+                </thead>
+                <tbody id="salesReportUserwiseBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header"><strong>Bills</strong></div>
+        <div class="card-body p-0" style="overflow-x:auto;">
+          <table class="data-table" style="margin-bottom:0;">
+            <thead>
+              <tr>
+                <th>Bill No</th>
+                <th>Date</th>
+                <th>User</th>
+                <th>Customer</th>
+                <th>Payment</th>
+                <th style="text-align:right;">Grand Total</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="salesReportBillsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><strong>Bill Details</strong></div>
+        <div class="card-body">
+          <div id="salesBillDetailsMeta" style="margin-bottom:14px;color:var(--text-muted);">Select a bill to view item details.</div>
+          <div style="overflow-x:auto;">
+            <table class="data-table" style="margin-bottom:0;">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Item</th>
+                  <th>Size</th>
+                  <th>Color</th>
+                  <th style="text-align:center;">Qty</th>
+                  <th style="text-align:right;">Line Total</th>
+                </tr>
+              </thead>
+              <tbody id="salesBillDetailsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- ══════════════════════════════════════════
          PAGE: STOCK HISTORY / LEDGER

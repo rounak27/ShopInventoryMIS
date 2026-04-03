@@ -600,6 +600,12 @@ function showPage(pageId) {
   if (pageId === 'stock' && typeof StockMgr !== 'undefined' && typeof StockMgr.loadStock === 'function') {
     StockMgr.loadStock(1);
   }
+  if (pageId === 'statement' && typeof SalesMgr !== 'undefined' && typeof SalesMgr.loadStatementReport === 'function') {
+    SalesMgr.loadStatementReport();
+    if (typeof SalesMgr.renderBillDetails === 'function' && !SalesMgr.selectedBillId) {
+      SalesMgr.renderBillDetails(null);
+    }
+  }
 
   // Close sidebar on mobile
   if (window.innerWidth < 992) {
@@ -614,6 +620,7 @@ function showPage(pageId) {
     stock:      'Current Stock',
     purchase:   'Purchase / Stock In',
     sales:      'Sales / POS & Reports',
+    statement:  'Daily Statement',
     history:    'Stock History / Ledger',
   };
   $('#topbarTitle').text(titles[pageId] || 'Inventory');

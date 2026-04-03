@@ -11,11 +11,15 @@ const SalesMgr = {
   searchHighlightedIdx: -1, // Track keyboard navigation in search results
   reportDays: 30,
   reportUserId: '',
+  reportFromDate: '',
+  reportToDate: '',
   reportUsers: [],
+  selectedBillId: null,
 
   init() {
     this.setupEventListeners();
     this.loadVariants();
+    this.initStatementDefaults();
     this.updateSummary();
     this.loadStatementReport();
   },
@@ -178,8 +182,22 @@ const SalesMgr = {
       this.loadStatementReport();
     });
 
+    $('#salesReportDateFrom, #salesReportDateTo').on('change', () => {
+      this.reportFromDate = $('#salesReportDateFrom').val() || '';
+      this.reportToDate = $('#salesReportDateTo').val() || '';
+      this.loadStatementReport();
+    });
+
     $('#salesReportRefresh').on('click', () => {
       this.loadStatementReport();
+    });
+
+    $(document).on('click', '.sales-bill-row', (e) => {
+      e.preventDefault();
+      const billId = $(e.currentTarget).data('bill-id');
+      if (billId) {
+        this.loadBillDetails(billId);
+      }
     });
   },
 
@@ -485,10 +503,36 @@ const SalesMgr = {
     return parseFloat(num).toFixed(2);
   },
 
+  initStatementDefaults() {
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    const start = new Date(today);
+    start.setDate(start.getDate() - 29);
+    const begin = start.toISOString().slice(0, 10);
+
+    this.reportFromDate = this.reportFromDate || begin;
+    this.reportToDate = this.reportToDate || end;
+
+    if ($('#salesReportDateFrom').length) {
+      $('#salesReportDateFrom').val(this.reportFromDate);
+    }
+    if ($('#salesReportDateTo').length) {
+      $('#salesReportDateTo').val(this.reportToDate);
+    }
+  },
+
   async loadStatementReport() {
     const query = new URLSearchParams({
       days: String(this.reportDays),
     });
+
+    if (this.reportFromDate) {
+      query.set('from_date', this.reportFromDate);
+    }
+
+    if (this.reportToDate) {
+      query.set('to_date', this.reportToDate);
+    }
 
     if (this.reportUserId) {
       query.set('user_id', this.reportUserId);
@@ -514,6 +558,14 @@ const SalesMgr = {
 
       this.reportUsers = data.data?.users || [];
       this.renderStatementReport(data.data || {});
+
+      if (this.selectedBillId) {
+        const stillVisible = (data.data?.bills || []).some((bill) => String(bill.id) === String(this.selectedBillId));
+        if (!stillVisible) {
+          this.selectedBillId = null;
+          this.renderBillDetails(null);
+        }
+      }
     } catch (e) {
       toast('Failed to load statement report', 'danger');
     }
@@ -524,6 +576,7 @@ const SalesMgr = {
     const summary = reportData.summary || {};
     const datewise = reportData.datewise || [];
     const userwise = reportData.userwise || [];
+    const bills = reportData.bills || [];
 
     const currentUserId = this.reportUserId;
     const userOptions = ['<option value="">All Users</option>']
@@ -575,6 +628,105 @@ const SalesMgr = {
           </tr>
         `;
       }).join(''));
+    }
+
+    const billsBody = $('#salesReportBillsBody');
+    if (bills.length === 0) {
+      billsBody.html('<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--text-muted);">No bills found for this period.</td></tr>');
+    } else {
+      billsBody.html(bills.map((bill) => {
+        const displayUser = bill.username ? `${bill.userName} (@${bill.username})` : bill.userName;
+        const activeClass = String(this.selectedBillId) === String(bill.id) ? 'table-active' : '';
+        return `
+          <tr class="sales-bill-row ${activeClass}" data-bill-id="${bill.id}" style="cursor:pointer;">
+            <td style="font-weight:700;">
+              <a href="#" class="sales-bill-link" data-bill-id="${bill.id}" style="text-decoration:none;">${bill.billNumber}</a>
+            </td>
+            <td>${bill.saleDate}</td>
+            <td>${displayUser}</td>
+            <td>${bill.customerName}</td>
+            <td style="text-align:center;">${bill.paymentMethod}</td>
+            <td style="text-align:right;font-weight:700;">Rs. ${this.formatMoney(bill.grandTotal || 0)}</td>
+            <td><span class="badge bg-secondary">${bill.status}</span></td>
+          </tr>
+        `;
+      }).join(''));
+    }
+  },
+
+  async loadBillDetails(billId) {
+    this.selectedBillId = billId;
+
+    try {
+      const data = await new Promise((resolve, reject) => {
+        $.ajax({
+          url: `${Config.apiBase}/sales/${billId}`,
+          method: 'GET',
+          headers: {
+            Authorization: 'Bearer ' + API.getToken(),
+          },
+          success: (res) => resolve(res),
+          error: (xhr) => reject(xhr.responseJSON || { message: 'Failed to load bill details' }),
+        });
+      });
+
+      if (!data || !data.success) {
+        toast(data?.message || 'Failed to load bill details', 'danger');
+        return;
+      }
+
+      this.renderBillDetails(data.data || null);
+    } catch (e) {
+      toast('Failed to load bill details', 'danger');
+    }
+  },
+
+  renderBillDetails(payload) {
+    const metaBody = $('#salesBillDetailsMeta');
+    const tableBody = $('#salesBillDetailsBody');
+
+    if (!payload) {
+      if (metaBody.length) {
+        metaBody.html('<div style="color:var(--text-muted);padding:12px 0;">Select a bill to view item details.</div>');
+      }
+      if (tableBody.length) {
+        tableBody.html('<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--text-muted);">No bill selected.</td></tr>');
+      }
+      return;
+    }
+
+    const sale = payload.sale || {};
+    const invoice = payload.invoice || {};
+    const items = payload.items || [];
+
+    if (metaBody.length) {
+      metaBody.html(`
+        <div class="row g-2">
+          <div class="col-md-3"><strong>Bill:</strong> ${sale.billNumber || '—'}</div>
+          <div class="col-md-3"><strong>Date:</strong> ${sale.saleDate || '—'}</div>
+          <div class="col-md-3"><strong>User:</strong> ${sale.createdBy || '—'}</div>
+          <div class="col-md-3"><strong>Customer:</strong> ${sale.customerName || 'Walk-in Customer'}</div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-md-3"><strong>Payment:</strong> ${sale.paymentMethod || '—'}</div>
+          <div class="col-md-3"><strong>Subtotal:</strong> Rs. ${this.formatMoney(invoice.subTotal || 0)}</div>
+          <div class="col-md-3"><strong>VAT:</strong> Rs. ${this.formatMoney(invoice.vatAmount || 0)}</div>
+          <div class="col-md-3"><strong>Grand Total:</strong> Rs. ${this.formatMoney(invoice.grandTotal || 0)}</div>
+        </div>
+      `);
+    }
+
+    if (tableBody.length) {
+      tableBody.html(items.map((item, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${item.variant?.itemName || '—'}</td>
+          <td>${item.variant?.size || '—'}</td>
+          <td>${item.variant?.color || '—'}</td>
+          <td style="text-align:center;">${item.quantity}</td>
+          <td style="text-align:right;">Rs. ${this.formatMoney(item.totalPrice || 0)}</td>
+        </tr>
+      `).join(''));
     }
   },
 

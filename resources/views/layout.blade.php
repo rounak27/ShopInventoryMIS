@@ -74,6 +74,9 @@
       </a>
 
       <div class="nav-group-label">Reports</div>
+      <a class="nav-link" data-page="statement">
+        <i class="bi bi-journal-text"></i> Daily Statement
+      </a>
       <a class="nav-link" data-page="history">
         <i class="bi bi-journal-bookmark-fill"></i> Stock Ledger
       </a>

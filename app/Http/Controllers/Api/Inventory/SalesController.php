@@ -405,7 +405,7 @@ class SalesController extends Controller
             ? Carbon::parse($request->input('from_date'))->startOfDay()
             : (clone $toDate)->subDays($days - 1)->startOfDay();
 
-        $baseQuery = Sale::query()
+        $baseQuery = Sale::with('creator')
             ->whereBetween('sale_date', [$fromDate->toDateString(), $toDate->toDateString()]);
 
         if ($userId) {
@@ -483,6 +483,28 @@ class SalesController extends Controller
             ])
             ->values();
 
+        $bills = (clone $baseQuery)
+            ->orderByDesc('sale_date')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (Sale $sale) => [
+                'id' => (int) $sale->id,
+                'billNumber' => $sale->bill_number,
+                'saleDate' => Carbon::parse($sale->sale_date)->format('Y-m-d'),
+                'createdAt' => $sale->created_at->format('Y-m-d H:i:s'),
+                'userId' => $sale->created_by ? (int) $sale->created_by : null,
+                'userName' => $sale->creator?->name ?? 'Unknown',
+                'username' => $sale->creator?->username,
+                'customerName' => $sale->customer_name ?? 'Walk-in Customer',
+                'paymentMethod' => ucfirst($sale->payment_method),
+                'status' => $sale->status,
+                'subTotal' => (float) $sale->sub_total,
+                'discountAmount' => (float) $sale->discount_amount,
+                'vat' => (float) $sale->vat,
+                'grandTotal' => (float) $sale->grand_total,
+            ])
+            ->values();
+
         $users = User::query()
             ->select(['id', 'name', 'username'])
             ->orderBy('name')
@@ -512,6 +534,7 @@ class SalesController extends Controller
             ],
             'datewise' => $datewise,
             'userwise' => $userwise,
+            'bills' => $bills,
         ]);
     }
 
