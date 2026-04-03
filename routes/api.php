@@ -39,6 +39,7 @@ Route::prefix('v1')->group(function () {
             // Sales (POS) endpoints
             Route::post('sales', [SalesController::class, 'store']);
             Route::get('sales', [SalesController::class, 'index']);
+            Route::get('sales/statement', [SalesController::class, 'statement']);
             Route::get('sales/{id}', [SalesController::class, 'show']);
             Route::post('sales/{id}/return', [SalesController::class, 'return']);
             Route::post('sales/{id}/print', [SalesController::class, 'markPrinted']);

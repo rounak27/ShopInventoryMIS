@@ -613,6 +613,7 @@ function showPage(pageId) {
     categories: 'Category Management',
     stock:      'Current Stock',
     purchase:   'Purchase / Stock In',
+    sales:      'Sales / POS & Reports',
     history:    'Stock History / Ledger',
   };
   $('#topbarTitle').text(titles[pageId] || 'Inventory');

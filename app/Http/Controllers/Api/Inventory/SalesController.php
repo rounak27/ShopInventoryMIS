@@ -10,6 +10,7 @@ use App\Models\ItemVariant;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\StockLedger;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -73,7 +74,7 @@ class SalesController extends Controller
             'vat' => (float) $sale->vat,
             'grandTotal' => (float) $sale->grand_total,
             'status' => $sale->status,
-            'saleDate' => $sale->sale_date->format('Y-m-d'),
+            'saleDate' => Carbon::parse($sale->sale_date)->format('Y-m-d'),
             'printedAt' => $sale->printed_at?->format('Y-m-d H:i:s'),
             'createdBy' => $sale->creator?->name,
             'createdAt' => $sale->created_at->format('Y-m-d H:i:s'),
@@ -112,7 +113,7 @@ class SalesController extends Controller
         return [
             'billNumber' => $sale->bill_number,
             'fiscalYear' => $sale->fiscal_year,
-            'saleDate' => $sale->sale_date->format('Y-m-d'),
+            'saleDate' => Carbon::parse($sale->sale_date)->format('Y-m-d'),
             'saleTime' => $sale->created_at->format('H:i:s'),
             'customerName' => $sale->customer_name ?? 'Walk-in Customer',
             'customerPan' => $sale->customer_pan,
@@ -200,6 +201,8 @@ class SalesController extends Controller
                         })
                         ->lockForUpdate()
                         ->first();
+
+                    /** @var ItemVariant $variant */
 
                     if (!$variant) {
                         throw new \Exception("Variant not found for: " . json_encode($itemData));
@@ -370,6 +373,145 @@ class SalesController extends Controller
                 'currentPage' => $sales->currentPage(),
                 'lastPage' => $sales->lastPage(),
             ],
+        ]);
+    }
+
+    // ── GET /api/v1/inventory/sales/statement ──────
+
+    /**
+     * Get datewise and userwise daily statement summary.
+     *
+     * Query params:
+     * - days: int (default 30)
+     * - user_id: int (optional)
+     */
+    public function statement(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'days' => 'nullable|integer|min:1|max:365',
+            'user_id' => 'nullable|integer|exists:users,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->err($validator->errors()->first());
+        }
+
+        $days = (int) ($request->input('days', 30));
+        $days = max(1, min($days, 365));
+        $userId = $request->filled('user_id') ? (int) $request->input('user_id') : null;
+
+        $toDate = Carbon::parse($request->input('to_date', now()))->endOfDay();
+        $fromDate = $request->filled('from_date')
+            ? Carbon::parse($request->input('from_date'))->startOfDay()
+            : (clone $toDate)->subDays($days - 1)->startOfDay();
+
+        $baseQuery = Sale::query()
+            ->whereBetween('sale_date', [$fromDate->toDateString(), $toDate->toDateString()]);
+
+        if ($userId) {
+            $baseQuery->where('created_by', $userId);
+        }
+
+        $overall = (clone $baseQuery)
+            ->selectRaw('
+                COUNT(*) as bills,
+                COALESCE(SUM(sub_total), 0) as sub_total,
+                COALESCE(SUM(discount_amount), 0) as discount_amount,
+                COALESCE(SUM(taxable_amount), 0) as taxable_amount,
+                COALESCE(SUM(vat), 0) as vat,
+                COALESCE(SUM(grand_total), 0) as grand_total
+            ')
+            ->first();
+
+        $datewise = (clone $baseQuery)
+            ->selectRaw('
+                sale_date,
+                COUNT(*) as bills,
+                COALESCE(SUM(sub_total), 0) as sub_total,
+                COALESCE(SUM(discount_amount), 0) as discount_amount,
+                COALESCE(SUM(taxable_amount), 0) as taxable_amount,
+                COALESCE(SUM(vat), 0) as vat,
+                COALESCE(SUM(grand_total), 0) as grand_total
+            ')
+            ->groupBy('sale_date')
+            ->orderBy('sale_date')
+            ->get()
+            ->map(fn ($row) => [
+                'date' => Carbon::parse($row->sale_date)->format('Y-m-d'),
+                'bills' => (int) $row->bills,
+                'subTotal' => (float) $row->sub_total,
+                'discountAmount' => (float) $row->discount_amount,
+                'taxableAmount' => (float) $row->taxable_amount,
+                'vat' => (float) $row->vat,
+                'grandTotal' => (float) $row->grand_total,
+            ])
+            ->values();
+
+        $userwiseQuery = Sale::query()
+            ->leftJoin('users', 'sales.created_by', '=', 'users.id')
+            ->whereBetween('sales.sale_date', [$fromDate->toDateString(), $toDate->toDateString()]);
+
+        if ($userId) {
+            $userwiseQuery->where('sales.created_by', $userId);
+        }
+
+        $userwise = $userwiseQuery
+            ->selectRaw('
+                sales.created_by as user_id,
+                COALESCE(users.name, "Unknown") as user_name,
+                COALESCE(users.username, "") as username,
+                COUNT(*) as bills,
+                COALESCE(SUM(sales.sub_total), 0) as sub_total,
+                COALESCE(SUM(sales.discount_amount), 0) as discount_amount,
+                COALESCE(SUM(sales.taxable_amount), 0) as taxable_amount,
+                COALESCE(SUM(sales.vat), 0) as vat,
+                COALESCE(SUM(sales.grand_total), 0) as grand_total
+            ')
+            ->groupBy('sales.created_by', 'users.name', 'users.username')
+            ->orderBy('users.name')
+            ->get()
+            ->map(fn ($row) => [
+                'userId' => $row->user_id ? (int) $row->user_id : null,
+                'userName' => $row->user_name,
+                'username' => $row->username,
+                'bills' => (int) $row->bills,
+                'subTotal' => (float) $row->sub_total,
+                'discountAmount' => (float) $row->discount_amount,
+                'taxableAmount' => (float) $row->taxable_amount,
+                'vat' => (float) $row->vat,
+                'grandTotal' => (float) $row->grand_total,
+            ])
+            ->values();
+
+        $users = User::query()
+            ->select(['id', 'name', 'username'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($user) => [
+                'id' => (int) $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+            ])
+            ->values();
+
+        return $this->ok([
+            'filters' => [
+                'days' => $days,
+                'userId' => $userId,
+                'fromDate' => $fromDate->toDateString(),
+                'toDate' => $toDate->toDateString(),
+            ],
+            'users' => $users,
+            'summary' => [
+                'bills' => (int) ($overall->bills ?? 0),
+                'subTotal' => (float) ($overall->sub_total ?? 0),
+                'discountAmount' => (float) ($overall->discount_amount ?? 0),
+                'taxableAmount' => (float) ($overall->taxable_amount ?? 0),
+                'vat' => (float) ($overall->vat ?? 0),
+                'grandTotal' => (float) ($overall->grand_total ?? 0),
+            ],
+            'datewise' => $datewise,
+            'userwise' => $userwise,
         ]);
     }
 

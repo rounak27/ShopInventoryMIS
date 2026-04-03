@@ -9,11 +9,15 @@ const SalesMgr = {
   variantIndex: {}, // Quick lookup by barcode and ID
   searchDebounceTimer: null,
   searchHighlightedIdx: -1, // Track keyboard navigation in search results
+  reportDays: 30,
+  reportUserId: '',
+  reportUsers: [],
 
   init() {
     this.setupEventListeners();
     this.loadVariants();
     this.updateSummary();
+    this.loadStatementReport();
   },
 
   setupEventListeners() {
@@ -167,6 +171,15 @@ const SalesMgr = {
     // Reset/New Sale
     $('#posResetBtn').on('click', () => {
       this.reset();
+    });
+
+    $('#salesReportUserFilter').on('change', () => {
+      this.reportUserId = $('#salesReportUserFilter').val() || '';
+      this.loadStatementReport();
+    });
+
+    $('#salesReportRefresh').on('click', () => {
+      this.loadStatementReport();
     });
   },
 
@@ -472,6 +485,99 @@ const SalesMgr = {
     return parseFloat(num).toFixed(2);
   },
 
+  async loadStatementReport() {
+    const query = new URLSearchParams({
+      days: String(this.reportDays),
+    });
+
+    if (this.reportUserId) {
+      query.set('user_id', this.reportUserId);
+    }
+
+    try {
+      const data = await new Promise((resolve, reject) => {
+        $.ajax({
+          url: `${Config.apiBase}/sales/statement?${query.toString()}`,
+          method: 'GET',
+          headers: {
+            Authorization: 'Bearer ' + API.getToken(),
+          },
+          success: (res) => resolve(res),
+          error: (xhr) => reject(xhr.responseJSON || { message: 'Failed to load statement report' }),
+        });
+      });
+
+      if (!data || !data.success) {
+        toast(data?.message || 'Failed to load statement report', 'danger');
+        return;
+      }
+
+      this.reportUsers = data.data?.users || [];
+      this.renderStatementReport(data.data || {});
+    } catch (e) {
+      toast('Failed to load statement report', 'danger');
+    }
+  },
+
+  renderStatementReport(reportData) {
+    const users = reportData.users || [];
+    const summary = reportData.summary || {};
+    const datewise = reportData.datewise || [];
+    const userwise = reportData.userwise || [];
+
+    const currentUserId = this.reportUserId;
+    const userOptions = ['<option value="">All Users</option>']
+      .concat(users.map((user) => {
+        const selected = String(user.id) === String(currentUserId) ? 'selected' : '';
+        const label = user.username ? `${user.name} (@${user.username})` : user.name;
+        return `<option value="${user.id}" ${selected}>${label}</option>`;
+      }))
+      .join('');
+
+    $('#salesReportUserFilter').html(userOptions);
+    $('#salesReportPeriod').text(`${reportData.filters?.fromDate || '—'} to ${reportData.filters?.toDate || '—'}`);
+    $('#salesReportBills').text(summary.bills || 0);
+    $('#salesReportSubtotal').text(`Rs. ${this.formatMoney(summary.subTotal || 0)}`);
+    $('#salesReportDiscount').text(`Rs. ${this.formatMoney(summary.discountAmount || 0)}`);
+    $('#salesReportVat').text(`Rs. ${this.formatMoney(summary.vat || 0)}`);
+    $('#salesReportGrandTotal').text(`Rs. ${this.formatMoney(summary.grandTotal || 0)}`);
+
+    const datewiseBody = $('#salesReportDatewiseBody');
+    if (datewise.length === 0) {
+      datewiseBody.html('<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--text-muted);">No sales found for this period.</td></tr>');
+    } else {
+      datewiseBody.html(datewise.map((row) => `
+        <tr>
+          <td style="font-weight:600;">${row.date}</td>
+          <td style="text-align:center;">${row.bills}</td>
+          <td style="text-align:right;">Rs. ${this.formatMoney(row.subTotal || 0)}</td>
+          <td style="text-align:right;">Rs. ${this.formatMoney(row.discountAmount || 0)}</td>
+          <td style="text-align:right;">Rs. ${this.formatMoney(row.vat || 0)}</td>
+          <td style="text-align:right;font-weight:700;">Rs. ${this.formatMoney(row.grandTotal || 0)}</td>
+        </tr>
+      `).join(''));
+    }
+
+    const userwiseBody = $('#salesReportUserwiseBody');
+    if (userwise.length === 0) {
+      userwiseBody.html('<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--text-muted);">No user summary available.</td></tr>');
+    } else {
+      userwiseBody.html(userwise.map((row) => {
+        const displayName = row.username ? `${row.userName} (@${row.username})` : row.userName;
+        return `
+          <tr>
+            <td style="font-weight:600;">${displayName}</td>
+            <td style="text-align:center;">${row.bills}</td>
+            <td style="text-align:right;">Rs. ${this.formatMoney(row.subTotal || 0)}</td>
+            <td style="text-align:right;">Rs. ${this.formatMoney(row.discountAmount || 0)}</td>
+            <td style="text-align:right;">Rs. ${this.formatMoney(row.vat || 0)}</td>
+            <td style="text-align:right;font-weight:700;">Rs. ${this.formatMoney(row.grandTotal || 0)}</td>
+          </tr>
+        `;
+      }).join(''));
+    }
+  },
+
   async checkout() {
     // Validation
     if (this.cart.length === 0) {
@@ -525,6 +631,8 @@ const SalesMgr = {
         if (typeof HistoryMgr !== 'undefined' && HistoryMgr.load) {
           HistoryMgr.load();
         }
+
+        this.loadStatementReport();
 
         // Reset form
         setTimeout(() => {
