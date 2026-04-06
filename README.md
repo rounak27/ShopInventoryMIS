@@ -11,3 +11,4 @@ Key Features:
 * RESTful API architecture
 * Responsive admin dashboard
 * Modular frontend structure with centralized state management
+* Full POS Billing System
