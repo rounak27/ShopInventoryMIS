@@ -248,7 +248,7 @@ $(document).ready(function () {
   function initializeDashboardModules() {
     if (initializeDashboardModules.initialized) return;
     initializeDashboardModules.initialized = true;
-
+//Initing all modules
     ItemMgr.init();
     CatMgr.init();
     StockMgr.init();
