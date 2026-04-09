@@ -10,6 +10,7 @@ Add barcode labels to items/variants for:
 - Inventory tracking
 - POS scanning preparation
 
+
 ---
 
 ## 📦 Setup

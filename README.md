@@ -6,10 +6,11 @@ It features an API-driven architecture where the frontend communicates with Lara
 Key Features:
 
 * Category and item management
-* Item variants and stock tracking
+* Item variants and stock trackingA
 * Server-side search, filtering, and pagination
 * RESTful API architecture
 * Responsive admin dashboard
 * Modular frontend structure with centralized state management
 * Full POS Billing System
 * Enhanced IRD Complaint Bill Print
+* Automated barcode Read Facility
