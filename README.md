@@ -4,7 +4,7 @@ The system allows efficient management of product categories, items, variants, a
 It features an API-driven architecture where the frontend communicates with Laravel backend services to perform item management, filtering, searching, and paginated data loading. The UI is designed for fast inventory operations and scalable data handling.
 Key Features:
 * Category and item management
-* Item variants and stock trackingA
+* Item variants and stock tracking
 * Server-side search, filtering, and pagination
 * RESTful API architecture
 * Responsive admin dashboard
