@@ -337,7 +337,7 @@ $(document).ready(function () {
       }
     });
 
-    console.log('%c📦 StockWise Inventory Module loaded', 'color:#6366f1;font-weight:700;font-size:13px;');
+    console.log(' StockWise Inventory Module loaded', 'color:#6366f1;font-weight:700;font-size:13px;');
   }
 
   if (window.AppAuth?.ready) {
