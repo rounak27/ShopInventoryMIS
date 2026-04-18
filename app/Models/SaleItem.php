@@ -13,6 +13,7 @@ class SaleItem extends Model
         'sale_id',
         'variant_id',
         'quantity',
+        'returned_quantity',
         'price_per_unit',
         'total_price',
         'cost_price',
@@ -21,6 +22,7 @@ class SaleItem extends Model
     ];
 
     protected $casts = [
+        'returned_quantity' => 'integer',
         'price_per_unit' => 'decimal:2',
         'total_price' => 'decimal:2',
         'cost_price' => 'decimal:2',

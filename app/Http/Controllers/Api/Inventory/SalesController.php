@@ -86,6 +86,8 @@ class SalesController extends Controller
      */
     private function formatSaleItem(SaleItem $item): array
     {
+        $returnedQuantity = (int) ($item->returned_quantity ?? 0);
+
         return [
             'id' => $item->id,
             'variant' => [
@@ -97,12 +99,147 @@ class SalesController extends Controller
                 'itemSku' => $item->variant->item->sku,
             ],
             'quantity' => (int) $item->quantity,
+            'returnedQuantity' => $returnedQuantity,
+            'availableReturnQuantity' => max((int) $item->quantity - $returnedQuantity, 0),
             'pricePerUnit' => (float) $item->price_per_unit,
             'costPrice' => (float) $item->cost_price,
             'profit' => (float) $item->profit,
             'discountAmount' => (float) $item->discount_amount,
             'totalPrice' => (float) $item->total_price,
         ];
+    }
+
+    /**
+     * Build the standard sale payload shape used by checkout and exchange flows.
+     */
+    private function buildSalePayload(Sale $sale): array
+    {
+        return [
+            'sale' => $this->formatSale($sale),
+            'items' => $sale->items->map(fn ($item) => $this->formatSaleItem($item))->toArray(),
+            'invoice' => $this->formatInvoice($sale),
+        ];
+    }
+
+    /**
+     * Create a sale from resolved cart item payloads.
+     *
+     * Each item payload must contain variantId or barcode, quantity, and optional priceOverride.
+     */
+    private function createSaleFromItems(array $itemPayloads, array $saleData, User $user, ?string $fiscalYear = null): Sale
+    {
+        $fiscalYear = $fiscalYear ?: FiscalYearHelper::getCurrentFiscalYear();
+
+        $resolvedItems = [];
+        $subTotal = 0;
+
+        foreach ($itemPayloads as $itemData) {
+            $variant = ItemVariant::with('item')
+                ->where(function ($query) use ($itemData) {
+                    if (!empty($itemData['barcode'])) {
+                        $query->where('barcode', $itemData['barcode']);
+                    } elseif (!empty($itemData['variantId'])) {
+                        $query->where('id', $itemData['variantId']);
+                    }
+                })
+                ->lockForUpdate()
+                ->first();
+
+            /** @var ItemVariant|null $variant */
+
+            if (!$variant) {
+                throw new \Exception('Variant not found for: ' . json_encode($itemData));
+            }
+
+            $quantity = (int) ($itemData['quantity'] ?? 0);
+            if ($quantity < 1) {
+                throw new \Exception('Invalid item quantity for ' . $variant->item->name);
+            }
+
+            if ($variant->current_stock < $quantity) {
+                throw new \Exception(
+                    "Insufficient stock for {$variant->item->name} ({$variant->size}/{$variant->color}). " .
+                    "Available: {$variant->current_stock}, Requested: {$quantity}"
+                );
+            }
+
+            $unitPrice = isset($itemData['priceOverride'])
+                ? (float) $itemData['priceOverride']
+                : (float) $variant->item->selling_price;
+
+            $itemTotal = $unitPrice * $quantity;
+            $subTotal += $itemTotal;
+
+            $costPrice = (float) $variant->item->cost_price;
+            $profit = ($unitPrice - $costPrice) * $quantity;
+
+            $resolvedItems[] = [
+                'variant' => $variant,
+                'quantity' => $quantity,
+                'unitPrice' => $unitPrice,
+                'costPrice' => $costPrice,
+                'profit' => $profit,
+                'total' => $itemTotal,
+            ];
+        }
+
+        $discountAmount = (float) ($saleData['discountAmount'] ?? 0);
+        $taxableAmount = $subTotal - $discountAmount;
+        $vat = round($taxableAmount * self::VAT_RATE, 2);
+        $grandTotal = $taxableAmount + $vat;
+
+        $billNo = FiscalYearHelper::getNextBillNumber($fiscalYear);
+        $billNumber = FiscalYearHelper::formatBillNumber($fiscalYear, $billNo);
+
+        $sale = Sale::create([
+            'customer_name' => $saleData['customerName'] ?? null,
+            'customer_pan' => $saleData['customerPan'] ?? null,
+            'bill_number' => $billNumber,
+            'fiscal_year' => $fiscalYear,
+            'created_by' => $user->id,
+            'sub_total' => $subTotal,
+            'discount_amount' => $discountAmount,
+            'taxable_amount' => $taxableAmount,
+            'vat' => $vat,
+            'grand_total' => $grandTotal,
+            'payment_method' => $saleData['paymentMethod'] ?? 'cash',
+            'status' => 'completed',
+            'sale_date' => Carbon::now()->toDateString(),
+        ]);
+
+        foreach ($resolvedItems as $itemData) {
+            $variant = $itemData['variant'];
+            $oldStock = (int) $variant->current_stock;
+            $newStock = $oldStock - $itemData['quantity'];
+
+            SaleItem::create([
+                'sale_id' => $sale->id,
+                'variant_id' => $variant->id,
+                'quantity' => $itemData['quantity'],
+                'returned_quantity' => 0,
+                'price_per_unit' => $itemData['unitPrice'],
+                'cost_price' => $itemData['costPrice'],
+                'profit' => $itemData['profit'],
+                'discount_amount' => 0,
+                'total_price' => $itemData['total'],
+            ]);
+
+            $variant->update(['current_stock' => $newStock]);
+
+            StockLedger::create([
+                'variant_id' => $variant->id,
+                'user_id' => $user->id,
+                'action_type' => 'sale',
+                'quantity_change' => -$itemData['quantity'],
+                'stock_before' => $oldStock,
+                'stock_after' => $newStock,
+                'reference_no' => $sale->bill_number,
+                'notes' => "Sale: {$sale->bill_number}",
+                'transaction_date' => now(),
+            ]);
+        }
+
+        return $sale->load(['items.variant.item', 'creator']);
     }
 
     /**
@@ -178,136 +315,20 @@ class SalesController extends Controller
 
         try {
             $sale = DB::transaction(function () use ($request) {
-                // Get or generate fiscal year
-                $fiscalYear = FiscalYearHelper::getCurrentFiscalYear();
-
-                // Get current user
                 $user = Auth::guard('api')->user();
-
-                // Process items
-                $items = [];
-                $subTotal = 0;
-                $totalProfit = 0;
-
-                foreach ($request->items as $itemData) {
-                    // Resolve variant
-                    $variant = ItemVariant::with('item')
-                        ->where(function ($q) use ($itemData) {
-                            if (!empty($itemData['barcode'])) {
-                                $q->where('barcode', $itemData['barcode']);
-                            } elseif (!empty($itemData['variantId'])) {
-                                $q->where('id', $itemData['variantId']);
-                            }
-                        })
-                        ->lockForUpdate()
-                        ->first();
-
-                    /** @var ItemVariant $variant */
-
-                    if (!$variant) {
-                        throw new \Exception("Variant not found for: " . json_encode($itemData));
-                    }
-
-                    // Validate stock
-                    if ($variant->current_stock < $itemData['quantity']) {
-                        throw new \Exception(
-                            "Insufficient stock for {$variant->item->name} ({$variant->size}/{$variant->color}). " .
-                            "Available: {$variant->current_stock}, Requested: {$itemData['quantity']}"
-                        );
-                    }
-
-                    // Get price (use override or selling price)
-                    $unitPrice = $itemData['priceOverride'] ?? $variant->item->selling_price;
-
-                    // Calculate item total
-                    $itemTotal = $unitPrice * $itemData['quantity'];
-                    $subTotal += $itemTotal;
-
-                    // Calculate profit
-                    $costPrice = $variant->item->cost_price;
-                    $profit = ($unitPrice - $costPrice) * $itemData['quantity'];
-                    $totalProfit += $profit;
-
-                    $items[] = [
-                        'variant' => $variant,
-                        'quantity' => $itemData['quantity'],
-                        'unitPrice' => $unitPrice,
-                        'costPrice' => $costPrice,
-                        'profit' => $profit,
-                        'total' => $itemTotal,
-                    ];
-                }
-
-                // Calculate totals
-                $discountAmount = (float) ($request->discountAmount ?? 0);
-                $taxableAmount = $subTotal - $discountAmount;
-                $vat = round($taxableAmount * self::VAT_RATE, 2);
-                $grandTotal = $taxableAmount + $vat;
-
-                // Generate bill number
-                $billNo = FiscalYearHelper::getNextBillNumber($fiscalYear);
-                $billNumber = FiscalYearHelper::formatBillNumber($fiscalYear, $billNo);
-
-                // Create sale
-                $sale = Sale::create([
-                    'customer_name' => $request->customerName,
-                    'customer_pan' => $request->customerPan,
-                    'bill_number' => $billNumber,
-                    'fiscal_year' => $fiscalYear,
-                    'created_by' => $user->id,
-                    'sub_total' => $subTotal,
-                    'discount_amount' => $discountAmount,
-                    'taxable_amount' => $taxableAmount,
-                    'vat' => $vat,
-                    'grand_total' => $grandTotal,
-                    'payment_method' => $request->paymentMethod,
-                    'status' => 'completed',
-                    'sale_date' => Carbon::now()->toDateString(),
-                ]);
-
-                // Insert sale items and create ledger entries
-                foreach ($items as $itemData) {
-                    $variant = $itemData['variant'];
-                    $oldStock = $variant->current_stock;
-                    $newStock = $oldStock - $itemData['quantity'];
-
-                    // Create sale item
-                    SaleItem::create([
-                        'sale_id' => $sale->id,
-                        'variant_id' => $variant->id,
-                        'quantity' => $itemData['quantity'],
-                        'price_per_unit' => $itemData['unitPrice'],
-                        'cost_price' => $itemData['costPrice'],
-                        'profit' => $itemData['profit'],
-                        'discount_amount' => 0, // Line item discount not yet implemented
-                        'total_price' => $itemData['total'],
-                    ]);
-
-                    // Deduct stock
-                    $variant->update(['current_stock' => $newStock]);
-
-                    // Create stock ledger entry
-                    StockLedger::create([
-                        'variant_id' => $variant->id,
-                        'user_id' => $user->id,
-                        'action_type' => 'sale',
-                        'quantity_change' => -$itemData['quantity'],
-                        'stock_before' => $oldStock,
-                        'stock_after' => $newStock,
-                        'reference_no' => $sale->bill_number,
-                        'notes' => "Sale: {$sale->bill_number}",
-                        'transaction_date' => now(),
-                    ]);
-                }
-
-                return $sale;
+                return $this->createSaleFromItems(
+                    $request->items,
+                    [
+                        'customerName' => $request->customerName,
+                        'customerPan' => $request->customerPan,
+                        'paymentMethod' => $request->paymentMethod,
+                        'discountAmount' => $request->discountAmount,
+                    ],
+                    $user
+                );
             });
 
-            return $this->ok([
-                'sale' => $this->formatSale($sale),
-                'items' => $sale->items->map(fn ($i) => $this->formatSaleItem($i))->toArray(),
-                'invoice' => $this->formatInvoice($sale),
-            ]);
+            return $this->ok($this->buildSalePayload($sale));
         } catch (\Exception $e) {
             return $this->err($e->getMessage());
         }
@@ -572,7 +593,26 @@ class SalesController extends Controller
      */
     public function return(Request $request, int $id): JsonResponse
     {
-        $sale = Sale::with('items.variant')->find($id);
+        $validator = Validator::make($request->all(), [
+            'mode' => 'nullable|in:return,exchange',
+            'reason' => 'nullable|string|max:255',
+            'returnItems' => 'required|array|min:1',
+            'returnItems.*.saleItemId' => 'required|integer|exists:sale_items,id',
+            'returnItems.*.quantity' => 'required|integer|min:1',
+            'exchangeItems' => 'nullable|array|min:1',
+            'exchangeItems.*.barcode' => 'nullable|string|max:50',
+            'exchangeItems.*.variantId' => 'nullable|integer|exists:item_variants,id',
+            'exchangeItems.*.quantity' => 'required_with:exchangeItems|integer|min:1',
+            'exchangeItems.*.priceOverride' => 'nullable|numeric|min:0',
+            'paymentMethod' => 'required_if:mode,exchange|nullable|in:cash,card,fonepay,esewa',
+            'discountAmount' => 'nullable|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->err($validator->errors()->first());
+        }
+
+        $sale = Sale::with(['items.variant.item', 'creator'])->find($id);
 
         if (!$sale) {
             return $this->err('Sale not found', 404);
@@ -582,40 +622,117 @@ class SalesController extends Controller
             return $this->err("Cannot return a {$sale->status} sale");
         }
 
+        $mode = $request->input('mode', 'return');
+        $returnItems = collect($request->input('returnItems', []))
+            ->groupBy('saleItemId')
+            ->map(fn ($group) => (int) $group->sum('quantity'))
+            ->all();
+
+        if (count($returnItems) === 0) {
+            return $this->err('Select at least one sale item to return');
+        }
+
+        $saleItemsById = $sale->items->keyBy('id');
+        foreach ($returnItems as $saleItemId => $quantity) {
+            $saleItem = $saleItemsById->get((int) $saleItemId);
+
+            if (!$saleItem) {
+                return $this->err('One or more return items do not belong to this sale');
+            }
+
+            $availableToReturn = (int) $saleItem->quantity - (int) $saleItem->returned_quantity;
+            if ($quantity > $availableToReturn) {
+                return $this->err(
+                    "Return quantity for {$saleItem->variant->item->name} ({$saleItem->variant->size}/{$saleItem->variant->color}) exceeds the available return quantity ({$availableToReturn})."
+                );
+            }
+        }
+
+        if ($mode === 'exchange' && empty($request->input('exchangeItems', []))) {
+            return $this->err('Add at least one replacement item for an exchange');
+        }
+
         try {
-            DB::transaction(function () use ($request, $sale) {
+            $exchangeSale = null;
+
+            DB::transaction(function () use ($request, $sale, $mode, $returnItems, &$exchangeSale) {
                 $user = Auth::guard('api')->user();
 
-                // Restore stock for each item
-                foreach ($sale->items as $item) {
-                    $variant = $item->variant;
-                    $oldStock = $variant->current_stock;
-                    $newStock = $oldStock + $item->quantity;
+                $sale = Sale::with('items.variant.item')->whereKey($sale->id)->lockForUpdate()->first();
 
-                    // Update variant stock
+                if (!$sale || $sale->status !== 'completed') {
+                    throw new \Exception('Sale can no longer be returned');
+                }
+
+                $allItemsFullyReturned = true;
+
+                foreach ($returnItems as $saleItemId => $quantity) {
+                    $item = $sale->items->firstWhere('id', (int) $saleItemId);
+
+                    if (!$item) {
+                        throw new \Exception('Return item not found for this sale');
+                    }
+
+                    /** @var ItemVariant|null $variant */
+                    $variant = ItemVariant::whereKey($item->variant_id)->lockForUpdate()->first();
+                    if (!$variant) {
+                        throw new \Exception('Variant not found for returned item');
+                    }
+
+                    $oldReturnedQuantity = (int) $item->returned_quantity;
+                    $newReturnedQuantity = $oldReturnedQuantity + (int) $quantity;
+                    $oldStock = (int) $variant->current_stock;
+                    $newStock = $oldStock + (int) $quantity;
+
+                    $item->update(['returned_quantity' => $newReturnedQuantity]);
                     $variant->update(['current_stock' => $newStock]);
 
-                    // Create reverse ledger entry
+                    if ($newReturnedQuantity < (int) $item->quantity) {
+                        $allItemsFullyReturned = false;
+                    }
+
                     StockLedger::create([
                         'variant_id' => $variant->id,
                         'user_id' => $user->id,
                         'action_type' => 'return',
-                        'quantity_change' => $item->quantity,
+                        'quantity_change' => (int) $quantity,
                         'stock_before' => $oldStock,
                         'stock_after' => $newStock,
                         'reference_no' => $sale->bill_number,
-                        'notes' => "Return: {$sale->bill_number}. Reason: " . ($request->reason ?? 'Not specified'),
+                        'notes' => sprintf(
+                            '%s: %s. Reason: %s',
+                            $mode === 'exchange' ? 'Exchange return' : 'Return',
+                            $sale->bill_number,
+                            $request->reason ?? 'Not specified'
+                        ),
                         'transaction_date' => now(),
                     ]);
                 }
 
-                // Mark sale as returned
-                $sale->update(['status' => 'returned']);
+                if ($mode === 'exchange') {
+                    $exchangeSale = $this->createSaleFromItems(
+                        $request->input('exchangeItems', []),
+                        [
+                            'customerName' => $sale->customer_name,
+                            'customerPan' => $sale->customer_pan,
+                            'paymentMethod' => $request->input('paymentMethod', $sale->payment_method),
+                            'discountAmount' => $request->input('discountAmount', 0),
+                        ],
+                        $user
+                    );
+                }
+
+                if ($allItemsFullyReturned) {
+                    $sale->update(['status' => 'returned']);
+                }
             });
 
             return $this->ok([
-                'sale' => $this->formatSale($sale),
-                'message' => 'Sale returned successfully. Stock restored.',
+                'sale' => $this->formatSale($sale->refresh()->load('creator')),
+                'exchangeSale' => $exchangeSale ? $this->buildSalePayload($exchangeSale) : null,
+                'message' => $mode === 'exchange'
+                    ? 'Exchange processed successfully. Returned items restored and replacement sale created.'
+                    : 'Return processed successfully. Stock restored.',
             ]);
         } catch (\Exception $e) {
             return $this->err($e->getMessage());

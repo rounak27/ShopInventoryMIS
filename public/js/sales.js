@@ -15,6 +15,10 @@ const SalesMgr = {
   reportToDate: '',
   reportUsers: [],
   selectedBillId: null,
+  selectedSaleDetails: null,
+  returnExchangeCart: [],
+  returnExchangeHighlightedIdx: -1,
+  returnExchangeSearchTimer: null,
 
   init() {
     this.setupEventListeners();
@@ -198,6 +202,66 @@ const SalesMgr = {
       if (billId) {
         this.loadBillDetails(billId);
       }
+    });
+
+    $(document).on('click', '.sales-return-launch', (e) => {
+      e.preventDefault();
+      this.openReturnExchangeModal();
+    });
+
+    $(document).on('click', '#salesReturnModal .sales-modal-close, #salesReturnModal .sales-modal-cancel', (e) => {
+      e.preventDefault();
+      this.closeReturnExchangeModal();
+    });
+
+    $(document).on('change', '#salesReturnMode', (e) => {
+      this.toggleReturnExchangeMode($(e.target).val());
+    });
+
+    $(document).on('input', '.sales-return-qty', (e) => {
+      const $input = $(e.target);
+      const maxQty = parseInt($input.attr('max')) || 0;
+      const value = Math.max(1, Math.min(parseInt($input.val()) || 1, maxQty));
+      $input.val(value);
+      this.syncReturnSelectionTotals();
+    });
+
+    $(document).on('change', '.sales-return-select', () => {
+      this.syncReturnSelectionTotals();
+    });
+
+    $(document).on('input', '#salesExchangeSearch', (e) => {
+      const term = $(e.target).val().trim();
+      clearTimeout(this.returnExchangeSearchTimer);
+      this.returnExchangeSearchTimer = setTimeout(() => {
+        this.searchExchangeVariants(term);
+      }, 180);
+    });
+
+    $(document).on('click', '#salesExchangeResults .search-result-item', (e) => {
+      const variantId = $(e.currentTarget).data('variant-id');
+      this.addExchangeVariant(variantId);
+    });
+
+    $(document).on('click', '.sales-exchange-remove', (e) => {
+      e.preventDefault();
+      const idx = $(e.currentTarget).data('idx');
+      this.removeExchangeItem(idx);
+    });
+
+    $(document).on('input', '.sales-exchange-qty', (e) => {
+      const idx = $(e.target).data('idx');
+      const value = Math.max(1, parseInt($(e.target).val()) || 1);
+      if (this.returnExchangeCart[idx]) {
+        this.returnExchangeCart[idx].quantity = value;
+        this.renderExchangeCart();
+        this.syncReturnSelectionTotals();
+      }
+    });
+
+    $(document).on('click', '#salesProcessReturnBtn', (e) => {
+      e.preventDefault();
+      this.processReturnExchange();
     });
   },
 
@@ -675,7 +739,8 @@ const SalesMgr = {
         return;
       }
 
-      this.renderBillDetails(data.data || null);
+      this.selectedSaleDetails = data.data || null;
+      this.renderBillDetails(this.selectedSaleDetails);
     } catch (e) {
       toast('Failed to load bill details', 'danger');
     }
@@ -713,6 +778,12 @@ const SalesMgr = {
           <div class="col-md-3"><strong>VAT:</strong> Rs. ${this.formatMoney(invoice.vatAmount || 0)}</div>
           <div class="col-md-3"><strong>Grand Total:</strong> Rs. ${this.formatMoney(invoice.grandTotal || 0)}</div>
         </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;">
+          <span class="badge ${sale.status === 'returned' ? 'bg-secondary' : 'bg-success'}">${sale.status || 'completed'}</span>
+          <button class="btn btn-outline btn-sm sales-return-launch" ${sale.status === 'returned' ? 'disabled' : ''}>
+            <i class="bi bi-arrow-left-right"></i> Return / Exchange
+          </button>
+        </div>
       `);
     }
 
@@ -727,6 +798,365 @@ const SalesMgr = {
           <td style="text-align:right;">Rs. ${this.formatMoney(item.totalPrice || 0)}</td>
         </tr>
       `).join(''));
+    }
+  },
+
+  openReturnExchangeModal() {
+    const payload = this.selectedSaleDetails;
+    if (!payload || !payload.sale || !Array.isArray(payload.items) || payload.items.length === 0) {
+      toast('Load a bill first', 'warning');
+      return;
+    }
+
+    const sale = payload.sale;
+    const invoice = payload.invoice || {};
+    const items = payload.items;
+
+    this.returnExchangeCart = [];
+    this.returnExchangeHighlightedIdx = -1;
+
+    const itemRows = items.map((item) => {
+      const available = item.availableReturnQuantity ?? item.quantity;
+      const disabled = available <= 0 ? 'disabled' : '';
+
+      return `
+        <tr>
+          <td>
+            <label style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" class="sales-return-select" data-sale-item-id="${item.id}" ${available > 0 ? 'checked' : ''} ${disabled} />
+              <span>${item.variant?.itemName || '—'}</span>
+            </label>
+          </td>
+          <td>${item.variant?.size || '—'}</td>
+          <td>${item.variant?.color || '—'}</td>
+          <td style="text-align:center;">${item.quantity}</td>
+          <td style="text-align:center;">${item.returnedQuantity || 0}</td>
+          <td style="text-align:center;">
+            <input type="number" class="form-control sales-return-qty" data-sale-item-id="${item.id}" min="1" max="${available}" value="${available > 0 ? available : 1}" ${disabled} style="width:86px;margin:0 auto;text-align:center;" />
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const modalHtml = `
+      <div class="modal-backdrop" id="salesReturnModal" style="display:flex;align-items:center;justify-content:center;z-index:9999;">
+        <div class="modal-box" style="width:min(1180px,96vw);max-height:92vh;overflow:auto;">
+          <div class="modal-head">
+            <h5><i class="bi bi-arrow-left-right"></i> Return / Exchange Sale</h5>
+            <button class="modal-close sales-modal-close"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="modal-body" style="display:grid;grid-template-columns:1.2fr .8fr;gap:16px;">
+            <div>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px;">
+                <div class="card" style="padding:10px 12px;"><div style="font-size:.72rem;color:var(--text-muted);">Bill</div><strong>${sale.billNumber || '—'}</strong></div>
+                <div class="card" style="padding:10px 12px;"><div style="font-size:.72rem;color:var(--text-muted);">Customer</div><strong>${sale.customerName || 'Walk-in Customer'}</strong></div>
+                <div class="card" style="padding:10px 12px;"><div style="font-size:.72rem;color:var(--text-muted);">Status</div><strong>${sale.status || 'completed'}</strong></div>
+                <div class="card" style="padding:10px 12px;"><div style="font-size:.72rem;color:var(--text-muted);">Total</div><strong>Rs. ${this.formatMoney(invoice.grandTotal || 0)}</strong></div>
+              </div>
+
+              <div class="form-group" style="margin-bottom:10px;">
+                <label class="form-label">Action</label>
+                <select id="salesReturnMode" class="form-control form-select">
+                  <option value="return">Return</option>
+                  <option value="exchange">Exchange</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="margin-bottom:14px;">
+                <label class="form-label">Reason</label>
+                <textarea id="salesReturnReason" class="form-control" rows="3" placeholder="Optional return or exchange reason"></textarea>
+              </div>
+
+              <div style="overflow-x:auto;">
+                <table class="data-table" style="margin-bottom:0;">
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Size</th>
+                      <th>Color</th>
+                      <th style="text-align:center;">Sold</th>
+                      <th style="text-align:center;">Returned</th>
+                      <th style="text-align:center;">Return Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody id="salesReturnItemsBody">${itemRows}</tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <div id="salesExchangeSection" style="display:none;">
+                <div class="card" style="padding:12px;margin-bottom:12px;">
+                  <div class="card-title" style="margin-bottom:8px;"><i class="bi bi-search"></i> Replacement Items</div>
+                  <div class="form-group" style="margin-bottom:8px;">
+                    <input type="text" id="salesExchangeSearch" class="form-control" placeholder="Search item, SKU, size, color…" />
+                  </div>
+                  <div id="salesExchangeResults" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;"></div>
+                </div>
+
+                <div class="card" style="padding:12px;">
+                  <div class="card-title" style="margin-bottom:8px;"><i class="bi bi-cart"></i> Exchange Cart</div>
+                  <div style="overflow-x:auto;">
+                    <table class="data-table" style="margin-bottom:0;">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th style="text-align:center;">Qty</th>
+                          <th style="text-align:right;">Price</th>
+                          <th style="text-align:center;"></th>
+                        </tr>
+                      </thead>
+                      <tbody id="salesExchangeCartBody">
+                        <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px;">No replacement items selected.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-weight:700;">
+                    <span>Replacement Total</span>
+                    <span id="salesExchangeGrandTotal">Rs. 0.00</span>
+                  </div>
+                  <div class="form-group" style="margin-top:12px;">
+                    <label class="form-label">Payment Method</label>
+                    <select id="salesExchangePaymentMethod" class="form-control form-select">
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="fonepay">FonePay</option>
+                      <option value="esewa">eSewa</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-foot" style="display:flex;justify-content:flex-end;gap:8px;">
+            <button class="btn btn-outline sales-modal-cancel">Cancel</button>
+            <button class="btn btn-primary" id="salesProcessReturnBtn">
+              <i class="bi bi-check-circle-fill"></i> Process Return
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    $('#salesReturnModal').remove();
+    $('body').append(modalHtml);
+    $('#salesReturnMode').val('return').trigger('change');
+    $('#salesExchangePaymentMethod').val(sale.paymentMethod || 'cash');
+    this.syncReturnSelectionTotals();
+  },
+
+  closeReturnExchangeModal() {
+    $('#salesReturnModal').remove();
+    this.returnExchangeCart = [];
+    this.returnExchangeHighlightedIdx = -1;
+  },
+
+  toggleReturnExchangeMode(mode) {
+    const isExchange = mode === 'exchange';
+    $('#salesExchangeSection').toggle(isExchange);
+    $('#salesProcessReturnBtn').html(isExchange
+      ? '<i class="bi bi-arrow-left-right"></i> Process Exchange'
+      : '<i class="bi bi-check-circle-fill"></i> Process Return');
+
+    if (isExchange) {
+      this.searchExchangeVariants($('#salesExchangeSearch').val() || '');
+    }
+
+    this.syncReturnSelectionTotals();
+  },
+
+  syncReturnSelectionTotals() {
+    let selectedCount = 0;
+    $('.sales-return-select').each((_, el) => {
+      if ($(el).is(':checked')) {
+        selectedCount++;
+      }
+    });
+
+    const total = this.returnExchangeCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    $('#salesExchangeGrandTotal').text(`Rs. ${this.formatMoney(total)}`);
+    $('#salesProcessReturnBtn').prop('disabled', selectedCount === 0);
+  },
+
+  searchExchangeVariants(term) {
+    const resultsDiv = $('#salesExchangeResults');
+    if (!resultsDiv.length) {
+      return;
+    }
+
+    const search = (term || '').toLowerCase();
+    if (search.length < 2) {
+      resultsDiv.html('<div style="padding:12px;color:var(--text-muted);text-align:center;">Type at least 2 characters to search</div>');
+      return;
+    }
+
+    const results = this.allVariants.filter((variant) => {
+      const haystack = [variant.itemName, variant.sku, variant.size, variant.color, variant.barcode]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(search);
+    }).slice(0, 12);
+
+    if (results.length === 0) {
+      resultsDiv.html('<div style="padding:12px;color:var(--text-muted);text-align:center;">No items found</div>');
+      return;
+    }
+
+    resultsDiv.html(results.map((variant) => `
+      <div class="search-result-item" data-variant-id="${variant.id}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);">
+        <div style="min-width:0;">
+          <div style="font-weight:600;">${variant.itemName || '—'}</div>
+          <div style="font-size:.78rem;color:var(--text-muted);">${variant.size || '—'} ${variant.color ? ` / ${variant.color}` : ''} ${variant.sku ? `• SKU: ${variant.sku}` : ''}</div>
+        </div>
+        <div style="text-align:right;white-space:nowrap;">
+          <div style="font-weight:700;">Rs. ${this.formatMoney(variant.sellingPrice || 0)}</div>
+          <div style="font-size:.75rem;color:var(--text-muted);">Stock: ${variant.stock || 0}</div>
+        </div>
+      </div>
+    `).join(''));
+  },
+
+  addExchangeVariant(variantId) {
+    const variant = this.variantIndex['id_' + variantId];
+    if (!variant) {
+      toast('Variant not found', 'warning');
+      return;
+    }
+
+    const existingIdx = this.returnExchangeCart.findIndex((item) => item.variant.id === variant.id);
+    if (existingIdx >= 0) {
+      this.returnExchangeCart[existingIdx].quantity++;
+    } else {
+      this.returnExchangeCart.push({
+        variant,
+        quantity: 1,
+        price: variant.sellingPrice,
+      });
+    }
+
+    $('#salesExchangeSearch').val('');
+    $('#salesExchangeResults').empty();
+    this.renderExchangeCart();
+    this.syncReturnSelectionTotals();
+  },
+
+  removeExchangeItem(idx) {
+    if (idx >= 0 && idx < this.returnExchangeCart.length) {
+      this.returnExchangeCart.splice(idx, 1);
+      this.renderExchangeCart();
+      this.syncReturnSelectionTotals();
+    }
+  },
+
+  renderExchangeCart() {
+    const body = $('#salesExchangeCartBody');
+    if (!body.length) {
+      return;
+    }
+
+    if (this.returnExchangeCart.length === 0) {
+      body.html('<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:16px;">No replacement items selected.</td></tr>');
+      return;
+    }
+
+    body.html(this.returnExchangeCart.map((item, idx) => `
+      <tr>
+        <td>
+          <div style="font-weight:600;">${item.variant.itemName || '—'}</div>
+          <div style="font-size:.75rem;color:var(--text-muted);">${item.variant.size || '—'} ${item.variant.color ? ` / ${item.variant.color}` : ''}</div>
+        </td>
+        <td style="text-align:center;">
+          <input type="number" min="1" class="form-control sales-exchange-qty" data-idx="${idx}" value="${item.quantity}" style="width:72px;margin:0 auto;text-align:center;" />
+        </td>
+        <td style="text-align:right;">Rs. ${this.formatMoney(item.price || 0)}</td>
+        <td style="text-align:center;">
+          <button class="btn btn-outline btn-sm sales-exchange-remove" data-idx="${idx}"><i class="bi bi-x"></i></button>
+        </td>
+      </tr>
+    `).join(''));
+  },
+
+  async processReturnExchange() {
+    const payload = this.selectedSaleDetails;
+    if (!payload || !payload.sale) {
+      toast('Select a bill first', 'warning');
+      return;
+    }
+
+    const saleId = payload.sale.id;
+    const mode = $('#salesReturnMode').val() || 'return';
+    const reason = $('#salesReturnReason').val().trim();
+    const paymentMethod = $('#salesExchangePaymentMethod').val() || payload.sale.paymentMethod || 'cash';
+
+    const returnItems = [];
+    $('#salesReturnItemsBody tr').each((_, row) => {
+      const $row = $(row);
+      const saleItemId = $row.find('.sales-return-select').data('sale-item-id');
+      const isChecked = $row.find('.sales-return-select').is(':checked');
+      const qty = parseInt($row.find('.sales-return-qty').val()) || 0;
+      if (isChecked && saleItemId && qty > 0) {
+        returnItems.push({ saleItemId, quantity: qty });
+      }
+    });
+
+    if (returnItems.length === 0) {
+      toast('Select at least one item to return', 'warning');
+      return;
+    }
+
+    if (mode === 'exchange' && this.returnExchangeCart.length === 0) {
+      toast('Select at least one replacement item for exchange', 'warning');
+      return;
+    }
+
+    const exchangeItems = this.returnExchangeCart.map((item) => ({
+      variantId: item.variant.id,
+      quantity: item.quantity,
+      priceOverride: item.price,
+    }));
+
+    const requestPayload = {
+      mode,
+      reason,
+      returnItems,
+      exchangeItems: mode === 'exchange' ? exchangeItems : undefined,
+      paymentMethod: mode === 'exchange' ? paymentMethod : undefined,
+    };
+
+    try {
+      $('#salesProcessReturnBtn').prop('disabled', true);
+      const response = await API.post(`/sales/${saleId}/return`, requestPayload);
+
+      if (!response.success) {
+        toast(response.message || 'Failed to process return', 'danger');
+        return;
+      }
+
+      toast(response.data?.message || 'Return processed successfully', 'success');
+
+      if (response.data?.exchangeSale) {
+        this.showInvoice(response.data.exchangeSale);
+      }
+
+      this.closeReturnExchangeModal();
+      this.loadStatementReport();
+
+      if (typeof StockMgr !== 'undefined' && StockMgr.loadStock) {
+        StockMgr.loadStock();
+      }
+
+      if (typeof HistoryMgr !== 'undefined' && HistoryMgr.load) {
+        HistoryMgr.load();
+      }
+
+      if (this.selectedBillId) {
+        this.loadBillDetails(this.selectedBillId);
+      }
+    } catch (err) {
+      toast(err.message || 'Error processing return', 'danger');
+    } finally {
+      $('#salesProcessReturnBtn').prop('disabled', false);
     }
   },
 
