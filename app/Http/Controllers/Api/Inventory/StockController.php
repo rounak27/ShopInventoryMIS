@@ -303,7 +303,7 @@ class StockController extends Controller
                 'id'         => $variant->id,
                 'itemId'     => $variant->item_id,
                 'itemName'   => $variant->item?->name ?? '',
-                'sku'        => $variant->item?->sku  ?? '',
+                'sku'        => $variant->sku ?? $variant->item?->sku ?? '',
                 'size'       => $variant->size,
                 'color'      => $variant->color,
                 'variantKey' => $variant->size . '-' . $variant->color,

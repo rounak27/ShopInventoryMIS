@@ -7,7 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 
 class ItemVariant extends Model
 {
-    protected $fillable = ['item_id','size','color','current_stock','reorder_level','barcode','is_active'];
+    protected $fillable = [
+        'item_id',
+        'sku',
+        'size',
+        'color',
+        'current_stock',
+        'reorder_level',
+        'selling_price',
+        'image_path',
+        'barcode',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'selling_price' => 'float',
+    ];
 
     protected static function booted(): void
     {

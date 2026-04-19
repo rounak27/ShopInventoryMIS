@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Api\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Models\Item;
 use App\Models\ItemVariant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -37,12 +41,17 @@ class VariantController extends Controller
             'id'           => $v->id,
             'itemId'       => $v->item_id,
             'itemName'     => $v->item?->name ?? '',
-            'sku'          => $v->item?->sku  ?? '',
+            'sku'          => $v->sku ?? $v->item?->sku ?? '',
+            'variantSku'   => $v->sku ?? $v->item?->sku ?? '',
+            'itemSku'      => $v->item?->sku ?? '',
             'size'         => $v->size,
             'color'        => $v->color,
             'variantKey'   => $v->size . '-' . $v->color,   // matches JS variantKey format
             'stock'        => (int) $v->current_stock,
             'reorderLevel' => (int) $v->reorder_level,
+            'price'        => (float) ($v->selling_price ?? $v->item?->selling_price ?? 0),
+            'imagePath'    => $v->image_path,
+            'imageUrl'     => $v->image_path ? asset('storage/' . ltrim($v->image_path, '/')) : null,
             'costPrice'    => (float) ($v->item?->cost_price    ?? 0),
             'sellingPrice' => (float) ($v->item?->selling_price ?? 0),
             'categoryId'   => $v->item?->category_id ?? null,
@@ -79,7 +88,8 @@ class VariantController extends Controller
                 )
             )
             ->when($request->search, fn ($q) =>
-                $q->where('barcode', 'like', "%{$request->search}%")
+                                $q->where('barcode', 'like', "%{$request->search}%")
+                                    ->orWhere('sku', 'like', "%{$request->search}%")
                   ->orWhereHas('item', fn ($iq) =>
                       $iq->where('name', 'like', "%{$request->search}%")
                          ->orWhere('sku',  'like', "%{$request->search}%")
@@ -116,40 +126,64 @@ class VariantController extends Controller
     {
         $v = Validator::make($request->all(), [
             'itemId'       => 'required|exists:items,id',
-            'size'         => 'required|string|max:20',
-            'color'        => 'required|string|max:50',
-            'stock'        => 'required|integer|min:0',
+            'size'         => 'required_without:variants|string|max:20',
+            'color'        => 'required_without:variants|string|max:50',
+            'sku'          => 'nullable|string|max:80|unique:item_variants,sku',
+            'price'        => 'required_without:variants|numeric|min:0',
+            'stock'        => 'required_without:variants|integer|min:0',
             'reorderLevel' => 'nullable|integer|min:0',
+            'image'        => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+
+            'variants'                 => 'nullable|array|min:1',
+            'variants.*.size'          => 'required|string|max:20',
+            'variants.*.color'         => 'required|string|max:50',
+            'variants.*.sku'           => 'nullable|string|max:80|distinct|unique:item_variants,sku',
+            'variants.*.price'         => 'required|numeric|min:0',
+            'variants.*.stock'         => 'required|integer|min:0',
+            'variants.*.reorderLevel'  => 'nullable|integer|min:0',
+            'variants.*.image'         => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         if ($v->fails()) {
             return $this->err($v->errors()->first());
         }
 
-        // Prevent duplicate size+color for same item
-        $exists = ItemVariant::where('item_id', $request->itemId)
-            ->where('size',  $request->size)
-            ->where('color', $request->color)
-            ->exists();
+        $rows = $this->payloadRows($request);
 
-        if ($exists) {
-            return $this->err("Variant {$request->size}/{$request->color} already exists for this item.", 409);
-        }
+        $created = DB::transaction(function () use ($request, $rows) {
+            $created = collect();
 
-        $variant = ItemVariant::create([
-            'item_id'       => $request->itemId,
-            'size'          => $request->size,
-            'color'         => $request->color,
-            'current_stock' => (int) $request->stock,
-            'reorder_level' => (int) ($request->reorderLevel ?? 10),
-        ]);
+            foreach ($rows as $index => $row) {
+                $image = $request->file("variants.{$index}.image");
+                if (!$image instanceof UploadedFile && count($rows) === 1) {
+                    $image = $request->file('image');
+                }
 
-        $variant->load(['item.category']);
+                $variant = ItemVariant::create([
+                    'item_id'       => (int) $request->itemId,
+                    'sku'           => $this->resolveSku((int) $request->itemId, $row['sku'] ?? null),
+                    'size'          => $row['size'],
+                    'color'         => $row['color'],
+                    'current_stock' => (int) ($row['stock'] ?? 0),
+                    'reorder_level' => (int) ($row['reorderLevel'] ?? 10),
+                    'selling_price' => (float) ($row['price'] ?? 0),
+                    'image_path'    => $image ? $image->store('variants', 'public') : null,
+                ]);
+
+                $created->push($variant);
+            }
+
+            return $created;
+        });
+
+        $created->load(['item.category']);
 
         return response()->json([
             'success' => true,
-            'message' => 'Variant created successfully.',
-            'data'    => $this->format($variant),
+            'message' => count($rows) > 1
+                ? count($rows) . ' variants created successfully.'
+                : 'Variant created successfully.',
+            'data'    => $created->map(fn (ItemVariant $variant) => $this->format($variant))->values(),
         ], 201);
     }
 
@@ -160,28 +194,37 @@ class VariantController extends Controller
         $v = Validator::make($request->all(), [
             'size'         => 'required|string|max:20',
             'color'        => 'required|string|max:50',
+            'sku'          => 'nullable|string|max:80|unique:item_variants,sku,' . $variant->id,
+            'price'        => 'nullable|numeric|min:0',
             'reorderLevel' => 'nullable|integer|min:0',
+            'image'        => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+            'removeImage'  => 'nullable|boolean',
         ]);
 
         if ($v->fails()) {
             return $this->err($v->errors()->first());
         }
 
-        // Check duplicate (exclude self)
-        $duplicate = ItemVariant::where('item_id', $variant->item_id)
-            ->where('size',  $request->size)
-            ->where('color', $request->color)
-            ->where('id', '!=', $variant->id)
-            ->exists();
+        $imagePath = $variant->image_path;
+        if ($request->boolean('removeImage') && $imagePath) {
+            Storage::disk('public')->delete($imagePath);
+            $imagePath = null;
+        }
 
-        if ($duplicate) {
-            return $this->err("A variant with size {$request->size} / color {$request->color} already exists.", 409);
+        if ($request->file('image') instanceof UploadedFile) {
+            if ($imagePath) {
+                Storage::disk('public')->delete($imagePath);
+            }
+            $imagePath = $request->file('image')->store('variants', 'public');
         }
 
         $variant->update([
             'size'          => $request->size,
             'color'         => $request->color,
+            'sku'           => $this->resolveSku((int) $variant->item_id, $request->sku ?? $variant->sku),
             'reorder_level' => (int) ($request->reorderLevel ?? $variant->reorder_level),
+            'selling_price' => (float) ($request->price ?? $variant->selling_price ?? 0),
+            'image_path'    => $imagePath,
         ]);
 
         $variant->load(['item.category']);
@@ -191,6 +234,41 @@ class VariantController extends Controller
             'message' => 'Variant updated successfully.',
             'data'    => $this->format($variant),
         ]);
+    }
+
+    private function payloadRows(Request $request): array
+    {
+        if (is_array($request->variants) && count($request->variants) > 0) {
+            return $request->variants;
+        }
+
+        return [[
+            'size' => $request->size,
+            'color' => $request->color,
+            'sku' => $request->sku,
+            'price' => $request->price,
+            'stock' => $request->stock,
+            'reorderLevel' => $request->reorderLevel,
+        ]];
+    }
+
+    private function resolveSku(int $itemId, ?string $requestedSku = null): string
+    {
+        if (!empty($requestedSku)) {
+            return strtoupper(trim($requestedSku));
+        }
+
+        $itemSku = Item::whereKey($itemId)->value('sku') ?? ('ITEM' . $itemId);
+        $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $itemSku));
+        if ($prefix === '') {
+            $prefix = 'ITEM' . $itemId;
+        }
+
+        do {
+            $candidate = $prefix . '-D' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+        } while (ItemVariant::where('sku', $candidate)->exists());
+
+        return $candidate;
     }
 
     // ── DELETE /api/v1/inventory/variants/{variant} ───────────

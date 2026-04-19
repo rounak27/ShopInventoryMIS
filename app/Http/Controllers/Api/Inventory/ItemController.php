@@ -7,6 +7,7 @@ use App\Models\Item;
 use App\Models\ItemVariant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -61,10 +62,32 @@ class ItemController extends Controller
                 'id'    => $v->id,
                 'size'  => $v->size,
                 'color' => $v->color,
+                'sku'   => $v->sku ?? $item->sku,
+                'price' => (float) ($v->selling_price ?? $item->selling_price ?? 0),
+                'imagePath' => $v->image_path,
+                'imageUrl'  => $v->image_path ? asset('storage/' . ltrim($v->image_path, '/')) : null,
                 'barcode' => $v->barcode,
                 'stock' => (int) $v->current_stock,
             ])->values()->toArray(),
         ];
+    }
+
+    private function resolveVariantSku(Item $item, ?string $requestedSku = null): string
+    {
+        if (!empty($requestedSku)) {
+            return strtoupper(trim($requestedSku));
+        }
+
+        $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $item->sku));
+        if ($prefix === '') {
+            $prefix = 'ITEM' . $item->id;
+        }
+
+        do {
+            $candidate = $prefix . '-D' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+        } while (ItemVariant::where('sku', $candidate)->exists());
+
+        return $candidate;
     }
 
     private function ok(mixed $data): JsonResponse
@@ -125,7 +148,10 @@ class ItemController extends Controller
             'variants'          => 'nullable|array',
             'variants.*.size'   => 'required|string|max:20',
             'variants.*.color'  => 'required|string|max:50',
+            'variants.*.sku'    => 'nullable|string|max:80|distinct|unique:item_variants,sku',
+            'variants.*.price'  => 'nullable|numeric|min:0',
             'variants.*.stock'  => 'required|integer|min:0',
+            'variants.*.image'  => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         if ($v->fails()) {
@@ -144,13 +170,21 @@ class ItemController extends Controller
                     'description'   => $request->description,
                 ]);
 
-                foreach ((array) $request->variants as $row) {
+                foreach ((array) $request->variants as $index => $row) {
+                    $image = $request->file("variants.{$index}.image");
+                    if (!$image instanceof UploadedFile && isset($row['image']) && $row['image'] instanceof UploadedFile) {
+                        $image = $row['image'];
+                    }
+
                     ItemVariant::create([
                         'item_id'       => $item->id,
+                        'sku'           => $this->resolveVariantSku($item, $row['sku'] ?? null),
                         'size'          => $row['size'],
                         'color'         => $row['color'] ?? 'N/A',
                         'current_stock' => (int) ($row['stock'] ?? 0),
                         'reorder_level' => (int) ($row['reorderLevel'] ?? 10),
+                        'selling_price' => (float) ($row['price'] ?? $item->selling_price),
+                        'image_path'    => $image ? $image->store('variants', 'public') : null,
                     ]);
                 }
 
@@ -181,8 +215,13 @@ class ItemController extends Controller
             'sellingPrice'      => 'required|numeric|min:0',
             'description'       => 'nullable|string|max:1000',
             'variants'          => 'nullable|array',
+            'variants.*.id'     => 'nullable|integer|exists:item_variants,id',
             'variants.*.size'   => 'required|string|max:20',
             'variants.*.color'  => 'required|string|max:50',
+            'variants.*.sku'    => 'nullable|string|max:80',
+            'variants.*.price'  => 'nullable|numeric|min:0',
+            'variants.*.stock'  => 'nullable|integer|min:0',
+            'variants.*.image'  => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
         ]);
 
         if ($v->fails()) {
@@ -203,19 +242,42 @@ class ItemController extends Controller
 
                 // Sync variants only if explicitly sent
                 if ($request->has('variants')) {
-                    foreach ((array) $request->variants as $row) {
-                        // Match by size+color; upsert so existing stock is preserved
-                        $variant = ItemVariant::firstOrNew([
-                            'item_id' => $item->id,
-                            'size'    => $row['size'],
-                            'color'   => $row['color'] ?? 'N/A',
-                        ]);
-
-                        if (!$variant->exists) {
-                            $variant->current_stock = (int) ($row['stock'] ?? 0);
+                    foreach ((array) $request->variants as $index => $row) {
+                        $variant = null;
+                        if (!empty($row['id'])) {
+                            $variant = ItemVariant::where('item_id', $item->id)->find($row['id']);
                         }
 
+                        if (!$variant) {
+                            $variant = new ItemVariant(['item_id' => $item->id]);
+                        }
+
+                        $imagePath = $variant->image_path;
+                        $image = $request->file("variants.{$index}.image");
+                        if (!$image instanceof UploadedFile && isset($row['image']) && $row['image'] instanceof UploadedFile) {
+                            $image = $row['image'];
+                        }
+
+                        if ($image instanceof UploadedFile) {
+                            if ($imagePath) {
+                                Storage::disk('public')->delete($imagePath);
+                            }
+                            $imagePath = $image->store('variants', 'public');
+                        }
+
+                        $variant->size = $row['size'];
+                        $variant->color = $row['color'] ?? 'N/A';
+                        $variant->sku = $this->resolveVariantSku($item, $row['sku'] ?? $variant->sku);
                         $variant->reorder_level = (int) ($row['reorderLevel'] ?? $variant->reorder_level ?? 10);
+                        $variant->selling_price = (float) ($row['price'] ?? $variant->selling_price ?? $item->selling_price);
+                        $variant->image_path = $imagePath;
+
+                        if (array_key_exists('stock', $row)) {
+                            $variant->current_stock = (int) $row['stock'];
+                        } elseif (!$variant->exists) {
+                            $variant->current_stock = 0;
+                        }
+
                         $variant->save();
                     }
                 }

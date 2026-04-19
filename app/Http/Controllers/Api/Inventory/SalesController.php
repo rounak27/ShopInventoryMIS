@@ -97,6 +97,7 @@ class SalesController extends Controller
                 'barcode' => $item->variant->barcode,
                 'itemName' => $item->variant->item->name,
                 'itemSku' => $item->variant->item->sku,
+                'variantSku' => $item->variant->sku ?? $item->variant->item->sku,
             ],
             'quantity' => (int) $item->quantity,
             'returnedQuantity' => $returnedQuantity,
@@ -165,7 +166,7 @@ class SalesController extends Controller
 
             $unitPrice = isset($itemData['priceOverride'])
                 ? (float) $itemData['priceOverride']
-                : (float) $variant->item->selling_price;
+                : (float) ($variant->selling_price ?? $variant->item->selling_price);
 
             $itemTotal = $unitPrice * $quantity;
             $subTotal += $itemTotal;

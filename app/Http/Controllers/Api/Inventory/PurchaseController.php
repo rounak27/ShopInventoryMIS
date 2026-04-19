@@ -68,7 +68,7 @@ class PurchaseController extends Controller
             'id'               => $line->id,
             'variantId'        => $line->variant_id,
             'itemName'         => $line->variant?->item?->name ?? '',
-            'sku'              => $line->variant?->item?->sku  ?? '',
+            'sku'              => $line->variant?->sku ?? $line->variant?->item?->sku ?? '',
             'size'             => $line->variant?->size  ?? '',
             'color'            => $line->variant?->color ?? '',
             'variantKey'       => ($line->variant ? $line->variant->size . '-' . $line->variant->color : ''),
