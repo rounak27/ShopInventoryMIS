@@ -547,6 +547,11 @@ input, select, textarea { font-family: var(--font); }
 .modal-lg   { max-width: 780px; }
 .modal-xl   { max-width: 980px; }
 
+/* Wider item modal for multi-variant entry */
+#itemModal .modal-box {
+  max-width: 1120px;
+}
+
 @keyframes modalIn {
   from { opacity: 0; transform: translateY(14px) scale(.98); }
   to   { opacity: 1; transform: translateY(0)    scale(1); }
@@ -592,6 +597,9 @@ input, select, textarea { font-family: var(--font); }
   transition: border-color var(--dur);
 }
 .variant-row:hover { border-color: var(--accent); }
+#itemModal #itemVariantList .variant-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 170px minmax(0, 180px);
+}
 .variant-row .vr-remove {
   width: 26px; height: 26px; border: none;
   background: var(--rose-soft); color: var(--rose);
@@ -771,6 +779,10 @@ input, select, textarea { font-family: var(--font); }
   .content { margin-left: 0; }
   .sidebar-toggle-btn { display: flex; align-items: center; }
   .form-row-3 { grid-template-columns: 1fr 1fr; }
+
+  #itemModal .modal-box {
+    max-width: 96vw;
+  }
 }
 @media (max-width: 768px) {
   .item-expand-cell {
@@ -826,14 +838,31 @@ input, select, textarea { font-family: var(--font); }
     padding: 10px;
   }
   #itemVariantList .variant-row > div:nth-child(3) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: grid !important;
+    grid-template-columns: 40px minmax(0, 1fr) !important;
+    gap: 8px;
+    align-items: center;
+  }
+  #itemVariantList .variant-row > div:nth-child(4) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
     gap: 8px;
     align-items: center;
   }
   #itemVariantList .variant-row .vr-remove {
     width: 32px;
     height: 32px;
+  }
+  #page-items .page-head {
+    align-items: stretch;
+    gap: 10px;
+  }
+  #page-items .page-head .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  #page-items .data-table {
+    min-width: 980px;
   }
   .page { padding: 16px 12px; }
   .modal-head h5 { font-size: .85rem; }

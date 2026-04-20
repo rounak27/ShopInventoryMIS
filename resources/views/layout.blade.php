@@ -66,6 +66,12 @@
         <i class="bi bi-clipboard2-data-fill"></i> Current Stock
         <span class="nav-count" id="navLowCount" style="display:none;">0</span>
       </a>
+      <a class="nav-link" data-page="barcode-out">
+        <i class="bi bi-upc-scan"></i> Barcode Stock Out
+      </a>
+      <a class="nav-link" data-page="barcode-in">
+        <i class="bi bi-box-arrow-in-down"></i> Barcode Stock In
+      </a>
       <a class="nav-link" data-page="purchase">
         <i class="bi bi-cart-plus-fill"></i> Purchase / Stock In
       </a>
@@ -167,6 +173,7 @@
 <script src="{{ asset('js/stock.js') }}"></script>
 <script src="{{ asset('js/purchase-history.js') }}"></script>
 <script src="{{ asset('js/sales.js') }}"></script>
+<script src="{{ asset('js/barcode-ops.js') }}"></script>
 <script>
 // ─── PWA Service Worker Registration ───
 if ('serviceWorker' in navigator) {

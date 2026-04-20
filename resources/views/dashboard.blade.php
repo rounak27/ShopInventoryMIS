@@ -100,6 +100,20 @@
             <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">Stock history</div>
           </div>
         </div>
+        <div class="card" style="cursor:pointer;transition:all var(--dur);" onclick="showPage('barcode-out')" onmouseover="this.style.borderColor='var(--rose)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div class="card-body" style="text-align:center;padding:20px;">
+            <div style="width:46px;height:46px;background:var(--rose-soft);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:1.2rem;color:var(--rose);"><i class="bi bi-upc-scan"></i></div>
+            <div style="font-weight:700;font-size:.85rem;">Scan Stock Out</div>
+            <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">Deduct 1 unit by barcode</div>
+          </div>
+        </div>
+        <div class="card" style="cursor:pointer;transition:all var(--dur);" onclick="showPage('barcode-in')" onmouseover="this.style.borderColor='var(--emerald)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div class="card-body" style="text-align:center;padding:20px;">
+            <div style="width:46px;height:46px;background:var(--emerald-soft);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:1.2rem;color:var(--emerald);"><i class="bi bi-box-arrow-in-down"></i></div>
+            <div style="font-weight:700;font-size:.85rem;">Scan Stock In</div>
+            <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">Qty, reason, and date</div>
+          </div>
+        </div>
       </div>
 
       <!-- Recent Ledger Preview -->
@@ -162,6 +176,7 @@
               <tr>
                 <th style="width:44px;text-align:center;">&nbsp;</th>
                 <th class="item-sort" data-sort="name">Item <i class="bi bi-chevron-expand"></i></th>
+                <th style="text-align:center;">Image</th>
                 <th>Category</th>
                 <th class="item-sort" data-sort="brand">Brand <i class="bi bi-chevron-expand"></i></th>
                 <th class="item-sort" data-sort="costPrice">Cost Price <i class="bi bi-chevron-expand"></i></th>
@@ -290,6 +305,118 @@
         <div class="tbl-pagination">
           <span class="pagination-info" id="stockPaginationInfo"></span>
           <div class="pagination-btns" id="stockPaginationBtns"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         PAGE: BARCODE STOCK OUT
+    ══════════════════════════════════════════ -->
+    <div class="page" id="page-barcode-out">
+      <div class="page-head">
+        <div class="page-head-left">
+          <div class="breadcrumb-bar"><a onclick="showPage('dashboard')" style="cursor:pointer;">Home</a><span class="bc-sep">/</span><span class="bc-cur">Barcode Stock Out</span></div>
+          <div class="pg-title">Barcode Stock Out</div>
+          <div class="pg-sub">Scan a barcode and the matching variant stock will reduce by 1 automatically.</div>
+        </div>
+        <button class="btn btn-outline" onclick="showPage('stock')"><i class="bi bi-clipboard2-data-fill"></i> Open Stock View</button>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-5">
+          <div class="card h-100">
+            <div class="card-header">
+              <div class="card-title"><i class="bi bi-upc-scan"></i> Scan Barcode</div>
+            </div>
+            <div class="card-body">
+              <label class="form-label">Barcode</label>
+              <input type="text" id="barcodeOutInput" class="form-control" placeholder="Scan barcode and press Enter" autofocus/>
+              <div class="form-hint mt-2">Each scan deducts exactly 1 qty from the matching variant.</div>
+              <div class="mt-3 d-flex gap-2">
+                <button type="button" class="btn btn-outline btn-sm" id="barcodeOutClearBtn"><i class="bi bi-arrow-clockwise"></i> Clear</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="card h-100">
+            <div class="card-header">
+              <div class="card-title"><i class="bi bi-box-seam"></i> Scan Result</div>
+            </div>
+            <div class="card-body" id="barcodeOutResult">
+              <div class="empty-state">
+                <i class="bi bi-upc-scan"></i>
+                <p>Scan a barcode to deduct one unit.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         PAGE: BARCODE STOCK IN
+    ══════════════════════════════════════════ -->
+    <div class="page" id="page-barcode-in">
+      <div class="page-head">
+        <div class="page-head-left">
+          <div class="breadcrumb-bar"><a onclick="showPage('dashboard')" style="cursor:pointer;">Home</a><span class="bc-sep">/</span><span class="bc-cur">Barcode Stock In</span></div>
+          <div class="pg-title">Barcode Stock In</div>
+          <div class="pg-sub">Scan a barcode, then enter qty, reason, and date to add stock.</div>
+        </div>
+        <button class="btn btn-outline" onclick="showPage('stock')"><i class="bi bi-clipboard2-data-fill"></i> Open Stock View</button>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-5">
+          <div class="card h-100">
+            <div class="card-header">
+              <div class="card-title"><i class="bi bi-upc-scan"></i> Scan Barcode</div>
+            </div>
+            <div class="card-body">
+              <label class="form-label">Barcode</label>
+              <input type="text" id="barcodeInInput" class="form-control" placeholder="Scan barcode and press Enter"/>
+              <div class="form-hint mt-2">The scan loads the item variant first. Then complete the stock-in form.</div>
+              <div id="barcodeInVariantCard" class="mt-3">
+                <div class="empty-state">
+                  <i class="bi bi-box-arrow-in-down"></i>
+                  <p>Scan a barcode to load the item details.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="card h-100">
+            <div class="card-header">
+              <div class="card-title"><i class="bi bi-journal-plus"></i> Stock In Details</div>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label">Qty</label>
+                  <input type="number" id="barcodeInQty" class="form-control" min="1" step="1" placeholder="Qty" value="1"/>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Date</label>
+                  <input type="date" id="barcodeInDate" class="form-control"/>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Action</label>
+                  <button type="button" class="btn btn-success w-100" id="btnBarcodeInSubmit">
+                    <i class="bi bi-check-circle-fill"></i> Save Stock In
+                  </button>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Reason</label>
+                  <textarea id="barcodeInReason" class="form-control" rows="3" placeholder="Reason for stock in"></textarea>
+                </div>
+              </div>
+              <div class="mt-3" id="barcodeInStatus"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1074,7 +1201,7 @@
 
 <!-- ── Item Add/Edit Modal ── -->
 <div class="modal-backdrop" id="itemModal">
-  <div class="modal-box modal-lg">
+  <div class="modal-box modal-xl item-modal-wide">
     <div class="modal-head">
       <h5 id="itemModalTitle"><i class="bi bi-plus-circle"></i> Add New Item</h5>
       <button class="modal-close"><i class="bi bi-x-lg"></i></button>
@@ -1143,13 +1270,14 @@
               <i class="bi bi-plus"></i> Add Variant
             </button>
           </label>
-          <div class="variant-list-head" style="display:grid;grid-template-columns:1fr 1fr auto;gap:4px;padding:4px 0;margin-bottom:4px;">
+          <div class="variant-list-head" style="display:grid;grid-template-columns:1fr 1fr 120px auto;gap:4px;padding:4px 0;margin-bottom:4px;">
             <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);padding-left:12px;">Size</span>
             <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);">Color</span>
+            <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);">Image</span>
             <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);">Opening Stock</span>
           </div>
           <div class="variant-list" id="itemVariantList"></div>
-          <span class="form-hint">Add one row per size/color combination. Opening stock is for new items.</span>
+          <span class="form-hint">Add one row per design. Variant image is compressed in browser before upload.</span>
         </div>
 
       </form>

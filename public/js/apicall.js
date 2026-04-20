@@ -41,6 +41,32 @@ const API = {
     });
 },
 
+  postForm(endpoint, formData) {
+    return new Promise((resolve, reject) => {
+      $.ajax({
+        url: Config.apiBase + endpoint,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+          'Authorization': 'Bearer ' + API.getToken(),
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: (res) => resolve(res),
+        error: (xhr) => reject(xhr.responseJSON || { message: 'Server error' }),
+      });
+    });
+  },
+
+  putForm(endpoint, formData) {
+    if (!(formData instanceof FormData)) {
+      formData = new FormData();
+    }
+    formData.append('_method', 'PUT');
+    return API.postForm(endpoint, formData);
+  },
+
   put(endpoint, data, cb) {
     $.ajax({
       url: Config.apiBase + endpoint,

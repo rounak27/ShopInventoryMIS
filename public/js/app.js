@@ -423,6 +423,35 @@ const API = {
         });
     });
 },
+
+  postForm(endpoint, formData) {
+    return new Promise((resolve, reject) => {
+      $.ajax({
+        url: Config.apiBase + endpoint,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+          'Authorization': `Bearer ${API.getToken()}`,
+          'Accept': 'application/json'
+        },
+        success: (res) => resolve(res),
+        error: (xhr) => {
+          if (API.handleAuthError(xhr)) return;
+          reject(xhr.responseJSON || { message: 'Server error' });
+        },
+      });
+    });
+  },
+
+  putForm(endpoint, formData) {
+    if (!(formData instanceof FormData)) {
+      formData = new FormData();
+    }
+    formData.append('_method', 'PUT');
+    return API.postForm(endpoint, formData);
+  },
   // post(endpoint, data, cb) {
   //   $.ajax({
   //     url: Config.apiBase + endpoint,
@@ -504,6 +533,9 @@ function bootDashboardApp() {
   ItemMgr.loadItems();
   refreshStats();
   showPage('dashboard');
+  if (typeof BarcodeOpsMgr !== 'undefined' && typeof BarcodeOpsMgr.init === 'function') {
+    BarcodeOpsMgr.init();
+  }
 
   // Nav clicks
   $(document).on('click', '.nav-link', function () {
@@ -607,6 +639,8 @@ function showPage(pageId) {
     }
   }
 
+  $(document).trigger('page:changed', [pageId]);
+
   // Close sidebar on mobile
   if (window.innerWidth < 992) {
     $('.sidebar').removeClass('open');
@@ -618,6 +652,8 @@ function showPage(pageId) {
     items:      'Item Management',
     categories: 'Category Management',
     stock:      'Current Stock',
+    'barcode-out': 'Barcode Stock Out',
+    'barcode-in':  'Barcode Stock In',
     purchase:   'Purchase / Stock In',
     sales:      'Sales / POS & Reports',
     statement:  'Daily Statement',

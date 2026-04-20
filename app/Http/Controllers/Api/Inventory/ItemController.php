@@ -9,7 +9,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -30,6 +29,8 @@ use Illuminate\Support\Facades\Validator;
  */
 class ItemController extends Controller
 {
+    private const VARIANT_IMAGE_DIR = 'uploads/variants';
+
     // ── Category → emoji map (mirrors frontend Store) ─────────
     private const CATEGORY_EMOJI = [
         "men's wear"   => '👔',
@@ -65,11 +66,66 @@ class ItemController extends Controller
                 'sku'   => $v->sku ?? $item->sku,
                 'price' => (float) ($v->selling_price ?? $item->selling_price ?? 0),
                 'imagePath' => $v->image_path,
-                'imageUrl'  => $v->image_path ? asset('storage/' . ltrim($v->image_path, '/')) : null,
+                'imageUrl'  => $this->toImageUrl($v->image_path),
                 'barcode' => $v->barcode,
                 'stock' => (int) $v->current_stock,
             ])->values()->toArray(),
         ];
+    }
+
+    private function toImageUrl(?string $imagePath): ?string
+    {
+        if (empty($imagePath)) {
+            return null;
+        }
+
+        if (preg_match('/^https?:\/\//i', $imagePath) === 1) {
+            return $imagePath;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $imagePath), '/');
+        if (str_starts_with($normalized, 'uploads/')) {
+            return asset($normalized);
+        }
+
+        // Legacy support for old storage/app/public paths.
+        return asset('storage/' . $normalized);
+    }
+
+    private function storeVariantImage(UploadedFile $image): string
+    {
+        $uploadDir = public_path(self::VARIANT_IMAGE_DIR);
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $ext = strtolower($image->getClientOriginalExtension() ?: 'jpg');
+        $filename = now()->format('YmdHis') . '-' . bin2hex(random_bytes(6)) . '.' . $ext;
+        $image->move($uploadDir, $filename);
+
+        return self::VARIANT_IMAGE_DIR . '/' . $filename;
+    }
+
+    private function deleteImageFile(?string $imagePath): void
+    {
+        if (empty($imagePath)) {
+            return;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $imagePath), '/');
+
+        // Current strategy: files in public/uploads/...
+        $publicFile = public_path($normalized);
+        if (is_file($publicFile)) {
+            @unlink($publicFile);
+            return;
+        }
+
+        // Legacy compatibility: old relative paths in storage/app/public/...
+        $legacyFile = storage_path('app/public/' . $normalized);
+        if (is_file($legacyFile)) {
+            @unlink($legacyFile);
+        }
     }
 
     private function resolveVariantSku(Item $item, ?string $requestedSku = null): string
@@ -184,7 +240,7 @@ class ItemController extends Controller
                         'current_stock' => (int) ($row['stock'] ?? 0),
                         'reorder_level' => (int) ($row['reorderLevel'] ?? 10),
                         'selling_price' => (float) ($row['price'] ?? $item->selling_price),
-                        'image_path'    => $image ? $image->store('variants', 'public') : null,
+                        'image_path'    => $image ? $this->storeVariantImage($image) : null,
                     ]);
                 }
 
@@ -260,9 +316,9 @@ class ItemController extends Controller
 
                         if ($image instanceof UploadedFile) {
                             if ($imagePath) {
-                                Storage::disk('public')->delete($imagePath);
+                                $this->deleteImageFile($imagePath);
                             }
-                            $imagePath = $image->store('variants', 'public');
+                            $imagePath = $this->storeVariantImage($image);
                         }
 
                         $variant->size = $row['size'];
@@ -304,7 +360,7 @@ class ItemController extends Controller
             DB::transaction(function () use ($item) {
                 // Cascade: ledger entries and variants deleted by DB cascade
                 if ($item->image_path) {
-                    Storage::disk('public')->delete($item->image_path);
+                    $this->deleteImageFile($item->image_path);
                 }
                 $item->delete();
             });

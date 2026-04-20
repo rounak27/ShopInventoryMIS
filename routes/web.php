@@ -14,6 +14,17 @@ Route::get('/clear-cache', function () {
     ]);
 
 });
+Route::get('/migrate-fresh', function () {
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_04_19_000001_add_design_fields_to_item_variants_table.php',
+        '--force' => true
+    ]);
+
+});
+Route::get('/create-storage-link', function () {
+    Artisan::call('storage:link');
+    return 'Storage link created successfully!';
+});
 Route::middleware(['auth'])->get('/run-sales-migration', function () {
     Artisan::call('migrate', [
         '--path' => 'database/migrations/2026_03_24_120000_create_sales_table.php',
@@ -30,6 +41,7 @@ Route::middleware(['auth'])->get('/run-sales-items-migration', function () {
 
     return 'Migration executed!';
 });
+
 Route::get('/', [App\Http\Controllers\Web\WebController::class, 'login'])->name('home');
 Route::get('/dashboard', [App\Http\Controllers\Web\WebController::class, 'dashboard'])->name('dashboard');
 Route::get('/login', [App\Http\Controllers\Web\WebController::class, 'login'])->name('login');

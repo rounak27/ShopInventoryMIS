@@ -9,7 +9,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -26,7 +25,62 @@ use Illuminate\Support\Facades\Validator;
  */
 class VariantController extends Controller
 {
+    private const VARIANT_IMAGE_DIR = 'uploads/variants';
+
     // ── Helpers ────────────────────────────────────────────────
+
+    private function toImageUrl(?string $imagePath): ?string
+    {
+        if (empty($imagePath)) {
+            return null;
+        }
+
+        if (preg_match('/^https?:\/\//i', $imagePath) === 1) {
+            return $imagePath;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $imagePath), '/');
+        if (str_starts_with($normalized, 'uploads/')) {
+            return asset($normalized);
+        }
+
+        // Legacy support for old storage/app/public paths.
+        return asset('storage/' . $normalized);
+    }
+
+    private function storeVariantImage(UploadedFile $image): string
+    {
+        $uploadDir = public_path(self::VARIANT_IMAGE_DIR);
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $ext = strtolower($image->getClientOriginalExtension() ?: 'jpg');
+        $filename = now()->format('YmdHis') . '-' . bin2hex(random_bytes(6)) . '.' . $ext;
+        $image->move($uploadDir, $filename);
+
+        return self::VARIANT_IMAGE_DIR . '/' . $filename;
+    }
+
+    private function deleteImageFile(?string $imagePath): void
+    {
+        if (empty($imagePath)) {
+            return;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $imagePath), '/');
+
+        $publicFile = public_path($normalized);
+        if (is_file($publicFile)) {
+            @unlink($publicFile);
+            return;
+        }
+
+        $legacyFile = storage_path('app/public/' . $normalized);
+        if (is_file($legacyFile)) {
+            @unlink($legacyFile);
+        }
+    }
 
     private function format(ItemVariant $v): array
     {
@@ -51,7 +105,7 @@ class VariantController extends Controller
             'reorderLevel' => (int) $v->reorder_level,
             'price'        => (float) ($v->selling_price ?? $v->item?->selling_price ?? 0),
             'imagePath'    => $v->image_path,
-            'imageUrl'     => $v->image_path ? asset('storage/' . ltrim($v->image_path, '/')) : null,
+            'imageUrl'     => $this->toImageUrl($v->image_path),
             'costPrice'    => (float) ($v->item?->cost_price    ?? 0),
             'sellingPrice' => (float) ($v->item?->selling_price ?? 0),
             'categoryId'   => $v->item?->category_id ?? null,
@@ -120,6 +174,19 @@ class VariantController extends Controller
         return $this->ok($this->format($variant));
     }
 
+    public function showByBarcode(string $barcode): JsonResponse
+    {
+        $variant = ItemVariant::with(['item.category'])
+            ->where('barcode', $barcode)
+            ->first();
+
+        if (!$variant) {
+            return $this->err('Variant not found for this barcode.', 404);
+        }
+
+        return $this->ok($this->format($variant));
+    }
+
     // ── POST /api/v1/inventory/variants ───────────────────────
 
     public function store(Request $request): JsonResponse
@@ -167,7 +234,7 @@ class VariantController extends Controller
                     'current_stock' => (int) ($row['stock'] ?? 0),
                     'reorder_level' => (int) ($row['reorderLevel'] ?? 10),
                     'selling_price' => (float) ($row['price'] ?? 0),
-                    'image_path'    => $image ? $image->store('variants', 'public') : null,
+                    'image_path'    => $image ? $this->storeVariantImage($image) : null,
                 ]);
 
                 $created->push($variant);
@@ -207,15 +274,15 @@ class VariantController extends Controller
 
         $imagePath = $variant->image_path;
         if ($request->boolean('removeImage') && $imagePath) {
-            Storage::disk('public')->delete($imagePath);
+            $this->deleteImageFile($imagePath);
             $imagePath = null;
         }
 
         if ($request->file('image') instanceof UploadedFile) {
             if ($imagePath) {
-                Storage::disk('public')->delete($imagePath);
+                $this->deleteImageFile($imagePath);
             }
-            $imagePath = $request->file('image')->store('variants', 'public');
+            $imagePath = $this->storeVariantImage($request->file('image'));
         }
 
         $variant->update([
@@ -281,6 +348,8 @@ class VariantController extends Controller
                 409
             );
         }
+
+        $this->deleteImageFile($variant->image_path);
 
         $variant->delete();
 

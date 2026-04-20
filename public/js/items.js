@@ -14,6 +14,13 @@ const ItemMgr = (() => {
   let sortDir       = 'asc';
   let editingId     = null;
   const expandedRows = new Set();
+
+  const IMAGE_COMPRESS = {
+    maxWidth: 1280,
+    maxHeight: 1280,
+    quality: 0.78,
+    maxBytes: 380 * 1024,
+  };
   
   /* ── Render item table ── */
   // function render() {
@@ -284,8 +291,12 @@ const ItemMgr = (() => {
     const rows = variants.length
       ? variants.map(v => {
           const barcodeValue = String(v.barcode || '').trim();
+          const img = v.imageUrl
+            ? `<img src="${esc(v.imageUrl)}" alt="Variant image" style="width:34px;height:34px;object-fit:cover;border-radius:8px;border:1px solid var(--border);"/>`
+            : `<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);border-radius:8px;color:var(--text-muted);font-size:12px;">N/A</div>`;
           return `
             <tr>
+              <td style="text-align:center;">${img}</td>
               <td>${esc(v.size || '-')}</td>
               <td>${esc(v.color || '-')}</td>
               <td class="text-center"><span class="sku-chip">${v.stock ?? 0}</span></td>
@@ -302,7 +313,7 @@ const ItemMgr = (() => {
 
     return `
       <tr class="item-variant-details-row" data-parent-id="${item.id}">
-        <td colspan="9">
+        <td colspan="10">
           <div class="variant-panel">
             <div class="variant-panel-head">
               <span>Variants for ${esc(item.name || 'Item')}</span>
@@ -314,6 +325,7 @@ const ItemMgr = (() => {
               <table class="variant-inline-table">
                 <thead>
                   <tr>
+                    <th style="text-align:center;">Image</th>
                     <th>Size</th>
                     <th>Color</th>
                     <th style="text-align:center;">Stock</th>
@@ -353,7 +365,7 @@ const ItemMgr = (() => {
   if (!data.length) {
     $tbody.html(`
       <tr>
-        <td colspan="9">
+        <td colspan="10">
           <div class="empty-state">
             <i class="bi bi-box-seam"></i>
             <p>No items found.</p>
@@ -370,6 +382,7 @@ const ItemMgr = (() => {
     const totalStock   = variants.reduce((s, v) => s + (v.stock || 0), 0);
     const variantCount = variants.length;
     const isExpanded = expandedRows.has(item.id);
+    const itemImage = (variants.find(v => v.imageUrl)?.imageUrl) || '';
 
     const st = Store.getStockStatus(totalStock);
 
@@ -388,6 +401,12 @@ const ItemMgr = (() => {
               <div class="product-sku">${esc(item.sku)}</div>
             </div>
           </div>
+        </td>
+
+        <td style="text-align:center;">
+          ${itemImage
+            ? `<img src="${esc(itemImage)}" alt="${esc(item.name)}" style="width:44px;height:44px;object-fit:cover;border-radius:10px;border:1px solid var(--border);margin:auto;"/>`
+            : `<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);border-radius:10px;color:var(--text-muted);font-size:12px;margin:auto;">N/A</div>`}
         </td>
 
         <td>
@@ -473,6 +492,7 @@ const ItemMgr = (() => {
     editingId = null;
     $('#itemModalTitle').html('<i class="bi bi-plus-circle"></i> Add New Item');
     $('#itemForm')[0].reset();
+    $('#itemImage').val('');
     $('#itemVariantList').empty();
     addVariantRow();  // start with one blank variant row
     openModal('itemModal');
@@ -493,20 +513,40 @@ const ItemMgr = (() => {
     $('#itemDescription').val(item.description);
     // Variants
     $('#itemVariantList').empty();
-    item.variants.forEach(v => addVariantRow(v.size, v.color, v.stock));
+    item.variants.forEach(v => addVariantRow({
+      id: v.id,
+      size: v.size,
+      color: v.color,
+      stock: v.stock,
+      sku: v.sku,
+      price: v.price,
+      imageUrl: v.imageUrl,
+      imagePath: v.imagePath,
+    }));
     openModal('itemModal');
   }
 
   /* ── Add variant row ── */
-  function addVariantRow(size = '', color = '', stock = 0) {
-    const rowId = Date.now() + Math.random();
+  function addVariantRow(variant = {}) {
+    const rowId = `vr-${Date.now()}-${Math.floor(Math.random() * 99999)}`;
+    const size = variant.size || '';
+    const color = variant.color || '';
+    const stock = Number.isFinite(Number(variant.stock)) ? Number(variant.stock) : 0;
+    const existingPreview = variant.imageUrl
+      ? `<img src="${esc(variant.imageUrl)}" alt="Variant" style="width:34px;height:34px;border-radius:8px;object-fit:cover;border:1px solid var(--border);"/>`
+      : `<span style="font-size:11px;color:var(--text-muted);">No image</span>`;
+
     $('#itemVariantList').append(`
-      <div class="variant-row" data-row="${rowId}">
+      <div class="variant-row" data-row="${rowId}" data-variant-id="${variant.id || ''}" data-existing-image-path="${esc(variant.imagePath || '')}">
         <div>
           <input type="text" class="form-control vr-size" placeholder="Size (e.g. M, 32, XS)" value="${esc(size)}"/>
         </div>
         <div>
           <input type="text" class="form-control vr-color" placeholder="Color (e.g. White)" value="${esc(color)}"/>
+        </div>
+        <div style="display:grid;grid-template-columns:34px 1fr;gap:6px;align-items:center;">
+          <div class="vr-img-preview">${existingPreview}</div>
+          <input type="file" class="form-control vr-image" accept="image/*"/>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;">
           <input type="number" class="form-control vr-stock" placeholder="Stock" min="0" value="${stock}" data-type="number"/>
@@ -515,35 +555,111 @@ const ItemMgr = (() => {
       </div>`);
   }
 
+  function previewImageInRow($row, objectUrl) {
+    $row.find('.vr-img-preview').html(
+      `<img src="${objectUrl}" alt="Variant" style="width:34px;height:34px;border-radius:8px;object-fit:cover;border:1px solid var(--border);"/>`
+    );
+  }
+
+  function readImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Failed to read image file.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadImage(source) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load image.'));
+      img.src = source;
+    });
+  }
+
+  async function compressImage(file) {
+    const dataUrl = await readImageFile(file);
+    const img = await loadImage(dataUrl);
+
+    const scale = Math.min(
+      1,
+      IMAGE_COMPRESS.maxWidth / img.width,
+      IMAGE_COMPRESS.maxHeight / img.height
+    );
+
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, width, height);
+
+    let quality = IMAGE_COMPRESS.quality;
+    let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+
+    while (blob && blob.size > IMAGE_COMPRESS.maxBytes && quality > 0.45) {
+      quality -= 0.08;
+      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    }
+
+    if (!blob) {
+      throw new Error('Failed to compress selected image.');
+    }
+
+    return blob;
+  }
+
   /* ── Save item (add or edit) ── */
   async function saveItem() {
     const $form = $('#itemForm');
     if (!validateForm($form)) return;
 
-    // Build variants
-    const variants = [];
+    const rows = [];
     $('#itemVariantList .variant-row').each(function () {
-      const size  = $(this).find('.vr-size').val().trim();
-      const color = $(this).find('.vr-color').val().trim();
-      const stock = parseInt($(this).find('.vr-stock').val()) || 0;
-      if (size) variants.push({ size, color: color || 'N/A', stock });
+      const $row = $(this);
+      const size = $row.find('.vr-size').val().trim();
+      if (!size) return;
+      rows.push({
+        variantId: parseInt($row.attr('data-variant-id')) || null,
+        size,
+        color: $row.find('.vr-color').val().trim() || 'N/A',
+        stock: parseInt($row.find('.vr-stock').val()) || 0,
+        imageBlob: $row.data('compressedImageBlob') || null,
+      });
     });
 
-    const payload = {
-      name:         $('#itemName').val().trim(),
-      sku:          $('#itemSKU').val().trim(),
-      categoryId:   parseInt($('#itemCategorySelect').val()),
-      brand:        $('#itemBrand').val().trim(),
-      costPrice:    parseFloat($('#itemCostPrice').val()),
-      sellingPrice: parseFloat($('#itemSellingPrice').val()),
-      description:  $('#itemDescription').val().trim(),
-      emoji:        '👔',  // could be derived from category
-      variants,
-    };
+    if (!rows.length) {
+      toast('Add at least one variant row before saving.', 'warning');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('name', $('#itemName').val().trim());
+    formData.append('sku', $('#itemSKU').val().trim());
+    formData.append('categoryId', parseInt($('#itemCategorySelect').val()));
+    formData.append('brand', $('#itemBrand').val().trim());
+    formData.append('costPrice', parseFloat($('#itemCostPrice').val()));
+    formData.append('sellingPrice', parseFloat($('#itemSellingPrice').val()));
+    formData.append('description', $('#itemDescription').val().trim());
+
+    rows.forEach((row, idx) => {
+      if (row.variantId) formData.append(`variants[${idx}][id]`, row.variantId);
+      formData.append(`variants[${idx}][size]`, row.size);
+      formData.append(`variants[${idx}][color]`, row.color);
+      formData.append(`variants[${idx}][stock]`, row.stock);
+      if (row.imageBlob) {
+        formData.append(`variants[${idx}][image]`, row.imageBlob, `variant-${idx + 1}.jpg`);
+      }
+    });
 
     if (editingId) {
-      // PUT /api/v1/inventory/items/{id}
-      API.put(`/items/${editingId}`, payload, function (res) {
+      try {
+        const res = await API.putForm(`/items/${editingId}`, formData);
         if (!res?.success) {
           toast(res?.message || 'Failed to update item.', 'danger');
           return;
@@ -551,17 +667,19 @@ const ItemMgr = (() => {
 
         closeModal('itemModal');
         loadItems(currentPage);
-        StockMgr.loadStock(); // Refresh stock data for variants
-        HistoryMgr.init(); // Refresh ledger history
+        StockMgr.loadStock();
+        HistoryMgr.init();
         refreshStats();
         toast(res.message || 'Item updated successfully!', 'success');
-      });
+      } catch (err) {
+        toast(err?.message || 'Server error', 'danger');
+      }
       return;
     }
 
     // POST /api/v1/inventory/items
     try {
-      const res = await API.post('/items', payload);
+      const res = await API.postForm('/items', formData);
       if (!res?.success) {
         toast(res?.message || 'Failed to add item.', 'danger');
         return;
@@ -658,6 +776,29 @@ const ItemMgr = (() => {
 
     // Add variant row button
     $(document).on('click', '#btnAddVariant', () => addVariantRow());
+
+    // Compress selected variant image before upload
+    $(document).on('change', '.vr-image', async function () {
+      const $input = $(this);
+      const $row = $input.closest('.variant-row');
+      const file = this.files && this.files[0];
+      if (!file) {
+        $row.removeData('compressedImageBlob');
+        return;
+      }
+
+      try {
+        const compressed = await compressImage(file);
+        $row.data('compressedImageBlob', compressed);
+        previewImageInRow($row, URL.createObjectURL(compressed));
+
+        const savedKB = Math.max(0, Math.round((file.size - compressed.size) / 1024));
+        toast(`Image compressed (${savedKB} KB saved).`, 'success');
+      } catch (err) {
+        $row.removeData('compressedImageBlob');
+        toast(err?.message || 'Image compression failed.', 'danger');
+      }
+    });
 
     // Remove variant row
     $(document).on('click', '.vr-remove', function () {

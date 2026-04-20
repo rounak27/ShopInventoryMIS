@@ -24,6 +24,7 @@ Route::prefix('v1')->group(function () {
 
             Route::apiResource('items', ItemController::class);
 
+            Route::get('variants/barcode/{barcode}', [VariantController::class, 'showByBarcode']);
             Route::apiResource('variants', VariantController::class);
 
             Route::apiResource('suppliers', SupplierController::class);
