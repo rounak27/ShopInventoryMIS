@@ -13,4 +13,6 @@ Key Features:
 * Full POS Billing System
 * Enhanced IRD Complaint Bill Print
 * Automated barcode Read Facility
+* Automated Barcode Stock Out System
+* Automated Barcode Stock IN System
 * Test case
